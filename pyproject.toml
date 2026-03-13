@@ -15,10 +15,12 @@ dependencies = [
   "python-whois>=0.9,<1.0",
   "pydantic>=2.10,<3.0",
   "lxml>=5.3,<6.0",
+  "PyYAML>=6.0,<7.0",
 ]
 
 [project.scripts]
 neonape = "neon_ape.cli:main"
+neonape-obsidian = "neon_ape.obsidian_sync:main"
 
 [tool.setuptools]
 include-package-data = true

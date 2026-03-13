@@ -332,6 +332,45 @@ neonape export findings --format csv --output findings.csv
 neonape import scans --input scans.json
 ```
 
+## Obsidian Sync
+
+Neon Ape also ships with an Obsidian bridge that can read a target note with YAML frontmatter, run a Neon Ape workflow, and write findings, notes, copied scan artifacts, and a basic Canvas file back into your vault.
+
+Example source note frontmatter:
+
+```yaml
+---
+target: "example.com"
+scope: "in-scope subdomains only"
+checklist: "pd_web_chain"
+---
+```
+
+Run it like this:
+
+```bash
+neonape-obsidian \
+  --vault-path "/path/to/ObsidianVault" \
+  --target-note "Pentests/example.com/Target.md" \
+  --notes-passphrase "your-passphrase"
+```
+
+It also works as:
+
+```bash
+python -m neon_ape.obsidian_sync --vault-path "/path/to/ObsidianVault" --target-note "Pentests/example.com/Target.md"
+```
+
+The sync creates or updates:
+
+- `Pentests/<target>/Target.md`
+- `Pentests/<target>/Findings.md`
+- `Pentests/<target>/Notes.md`
+- `Pentests/<target>/Scans/`
+- `Pentests/<target>/Screenshots/`
+- `Pentests/<target>/Attack-Chain.canvas`
+- `Pentests/Templates/Pentest-Target.md`
+
 ## Storage Behavior
 
 - Each run stores a row in `scan_runs`
