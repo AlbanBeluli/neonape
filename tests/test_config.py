@@ -18,7 +18,7 @@ def test_default_config_uses_home_and_env(monkeypatch) -> None:
     assert config.data_dir == Path("/tmp/neon-home/.neon_ape")
     assert config.db_path == Path("/tmp/neon-home/.neon_ape/neon_ape.db")
     assert config.schema_path.name == "schema.sql"
-    assert config.checklist_path.name == "oscp_black_book_mvp.json"
+    assert config.checklist_path.name == "neon_ape_checklist.json"
 
 
 def test_ensure_directories_creates_runtime_dirs(tmp_path) -> None:

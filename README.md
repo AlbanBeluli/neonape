@@ -80,7 +80,7 @@ neon_ape/
     repository.py
     schema.sql
   checklists/
-    oscp_black_book_mvp.json
+    neon_ape_checklist.json
 docs/
   architecture.md
   schema.md

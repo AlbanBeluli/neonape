@@ -28,7 +28,7 @@ def test_seed_checklist_and_status_update() -> None:
     root = Path(__file__).resolve().parents[1]
     connection = _connection()
     initialize_database(connection, root / "neon_ape" / "db" / "schema.sql")
-    seed_checklist_from_file(connection, root / "neon_ape" / "checklists" / "oscp_black_book_mvp.json")
+    seed_checklist_from_file(connection, root / "neon_ape" / "checklists" / "neon_ape_checklist.json")
 
     items = list_checklist_items(connection)
     assert len(items) >= 1
@@ -42,7 +42,7 @@ def test_record_scan_persists_scan_and_findings() -> None:
     root = Path(__file__).resolve().parents[1]
     connection = _connection()
     initialize_database(connection, root / "neon_ape" / "db" / "schema.sql")
-    seed_checklist_from_file(connection, root / "neon_ape" / "checklists" / "oscp_black_book_mvp.json")
+    seed_checklist_from_file(connection, root / "neon_ape" / "checklists" / "neon_ape_checklist.json")
 
     result = ToolResult(
         tool_name="httpx",
@@ -68,7 +68,7 @@ def test_recent_queries_support_filters() -> None:
     root = Path(__file__).resolve().parents[1]
     connection = _connection()
     initialize_database(connection, root / "neon_ape" / "db" / "schema.sql")
-    seed_checklist_from_file(connection, root / "neon_ape" / "checklists" / "oscp_black_book_mvp.json")
+    seed_checklist_from_file(connection, root / "neon_ape" / "checklists" / "neon_ape_checklist.json")
 
     record_scan(
         connection,
@@ -89,7 +89,7 @@ def test_export_and_import_scan_bundle_roundtrip() -> None:
     root = Path(__file__).resolve().parents[1]
     source = _connection()
     initialize_database(source, root / "neon_ape" / "db" / "schema.sql")
-    seed_checklist_from_file(source, root / "neon_ape" / "checklists" / "oscp_black_book_mvp.json")
+    seed_checklist_from_file(source, root / "neon_ape" / "checklists" / "neon_ape_checklist.json")
     record_scan(
         source,
         ToolResult(tool_name="httpx", target="a", command=["httpx"], exit_code=0),

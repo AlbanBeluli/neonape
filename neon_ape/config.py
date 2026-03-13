@@ -65,7 +65,7 @@ class AppConfig:
             data_dir=data_dir,
             db_path=data_dir / "neon_ape.db",
             log_path=data_dir / "neon_ape.log",
-            checklist_path=project_root / "neon_ape" / "checklists" / "oscp_black_book_mvp.json",
+            checklist_path=project_root / "neon_ape" / "checklists" / "neon_ape_checklist.json",
             schema_path=project_root / "neon_ape" / "db" / "schema.sql",
             scan_dir=data_dir / "scans",
             privacy_mode=privacy_mode,
