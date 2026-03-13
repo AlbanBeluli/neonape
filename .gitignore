@@ -12,4 +12,6 @@ dist/
 *.sqlite3
 *.log
 *.enc
+linpeas.sh
+linpeas_output.txt
 .DS_Store
