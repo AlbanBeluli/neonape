@@ -138,6 +138,13 @@ def test_build_gobuster_command_adds_https_to_bare_domain(tmp_path, monkeypatch)
     assert "https://example.com" in command
 
 
+def test_build_gobuster_command_adds_exclude_length(tmp_path, monkeypatch) -> None:
+    monkeypatch.setattr("neon_ape.tools.web_enum._detect_wordlist", lambda: "/tmp/wordlist.txt")
+    _, command = build_gobuster_command("example.com", tmp_path / "gobuster.txt", exclude_length="24824")
+    assert "--exclude-length" in command
+    assert "24824" in command
+
+
 def test_render_command_preview_masks_home_paths(monkeypatch) -> None:
     monkeypatch.setenv("HOME", "/tmp/test-home")
     preview = render_command_preview(["httpx", "-o", "/tmp/test-home/.neon_ape/scans/httpx.jsonl"])

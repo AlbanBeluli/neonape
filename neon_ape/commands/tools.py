@@ -203,12 +203,35 @@ def run_gobuster(
     console.print(f"[bold green]gobuster exit code:[/bold green] {result.exit_code}")
     if result.exit_code != 0 and result.stderr:
         console.print(f"[bold red]{result.stderr}[/bold red]")
-        if "matches the provided options for non existing urls" in result.stderr.lower():
+        hint = _gobuster_wildcard_hint(result.stderr, validated_target)
+        if hint:
+            console.print(hint)
+        details = _gobuster_wildcard_details(result.stderr)
+        if details and _prompt_gobuster_retry(console, details["content_length"]):
             console.print(
-                "[bold yellow]Gobuster hit a wildcard-style response.[/bold yellow] "
-                "The target returns a normal-looking response for random paths, so directory brute forcing "
-                "needs manual filtering by status code or response length."
+                f"[bold cyan]Retrying gobuster with --exclude-length {details['content_length']}...[/bold cyan]"
             )
+            retry_validated_target, retry_command = build_gobuster_command(
+                target,
+                output_path,
+                exclude_length=details["content_length"],
+            )
+            console.print(
+                Panel.fit(
+                    f"[bold]Tool:[/bold] gobuster\n[bold]Target:[/bold] {retry_validated_target}\n"
+                    f"[bold]Command:[/bold] {render_command_preview(retry_command)}",
+                    title="Eva Unit Scanner Retry",
+                    style=section_style("green"),
+                )
+            )
+            retry_result = execute_gobuster(retry_command, retry_validated_target, output_path)
+            retry_findings = parse_gobuster_output(output_path)
+            record_scan(connection, retry_result, retry_findings)
+            console.print(build_tool_output_table("gobuster", retry_findings))
+            console.print(f"[bold green]gobuster retry exit code:[/bold green] {retry_result.exit_code}")
+            if retry_result.exit_code != 0 and retry_result.stderr:
+                console.print(f"[bold red]{retry_result.stderr}[/bold red]")
+            return retry_result.exit_code == 0
     return result.exit_code == 0
 
 
@@ -418,6 +441,39 @@ def _default_batch_history_target(tool_name: str, workflow_name: str | None, val
     if len(validated_targets) == 1:
         return validated_targets[0]
     return f"batch:{tool_name}:{len(validated_targets)}_targets"
+
+
+def _gobuster_wildcard_hint(stderr: str, target: str) -> str | None:
+    details = _gobuster_wildcard_details(stderr)
+    if details is None:
+        return None
+
+    return (
+        "[bold yellow]Gobuster hit a wildcard-style response.[/bold yellow] "
+        f"The target returns HTTP {details['status_code']} for random paths with length {details['content_length']}. "
+        f"Retry manually with a filtered command such as "
+        f"`gobuster dir -u {target} -w <wordlist> --exclude-length {details['content_length']}` "
+        f"or adjust the blocked status codes."
+    )
+
+
+def _gobuster_wildcard_details(stderr: str) -> dict[str, str] | None:
+    lowered = stderr.lower()
+    if "matches the provided options for non existing urls" not in lowered:
+        return None
+    status_match = re.search(r"=>\s*(\d{3})\s*\(Length:\s*(\d+)\)", stderr)
+    if not status_match:
+        return None
+    status_code, content_length = status_match.groups()
+    return {"status_code": status_code, "content_length": content_length}
+
+
+def _prompt_gobuster_retry(console: Console, exclude_length: str) -> bool:
+    answer = console.input(
+        "[bold cyan]Retry gobuster with "
+        f"`--exclude-length {exclude_length}`?[/bold cyan] [y/N]: "
+    ).strip().lower()
+    return answer in {"y", "yes"}
 
 
 def _discover_subdomains(

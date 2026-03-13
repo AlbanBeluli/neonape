@@ -20,7 +20,7 @@ DEFAULT_WORDLISTS = (
 )
 
 
-def build_gobuster_command(target: str, output_path: Path) -> tuple[str, list[str]]:
+def build_gobuster_command(target: str, output_path: Path, *, exclude_length: str | None = None) -> tuple[str, list[str]]:
     validated = _normalize_gobuster_target(target)
     wordlist = _detect_wordlist()
     if wordlist is None:
@@ -39,9 +39,15 @@ def build_gobuster_command(target: str, output_path: Path) -> tuple[str, list[st
         wordlist,
         "-t",
         "10",
+    ]
+    if exclude_length:
+        command.extend(["--exclude-length", exclude_length])
+    command.extend(
+        [
         "-o",
         str(output_path),
-    ]
+        ]
+    )
     return validated, command
 
 
