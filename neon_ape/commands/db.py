@@ -9,8 +9,10 @@ from neon_ape.db.repository import domain_overview, list_tables, normalize_batch
 from neon_ape.ui.layout import build_checklist_table
 from neon_ape.ui.views import (
     build_domain_summary_panel,
+    build_inventory_table,
     build_notes_table,
     build_recent_findings_table,
+    build_review_findings_table,
     build_scans_table,
     build_tables_table,
     display_runtime_path,
@@ -63,6 +65,8 @@ def run_db_view(
         console.print(build_domain_summary_panel(domain_target, overview))
         console.print(build_scans_table(_sanitize_scans(overview["scans"], show_targets=show_targets), mask_targets=not show_targets))
         console.print(build_recent_findings_table(overview["findings"]))
+        console.print(build_inventory_table(overview["inventory"]))
+        console.print(build_review_findings_table(overview["reviews"]))
         console.print(build_notes_table(overview["notes"]))
         return
     if db_command == "cleanup-history":

@@ -17,9 +17,9 @@ def test_parse_nmap_xml_extracts_host_and_port(tmp_path) -> None:
   <host>
     <address addr="10.10.10.10" />
     <ports>
-      <port portid="80">
+      <port portid="80" protocol="tcp">
         <state state="open" />
-        <service name="http" />
+        <service name="http" product="Apache httpd" version="2.4.49" />
       </port>
     </ports>
   </host>
@@ -31,18 +31,21 @@ def test_parse_nmap_xml_extracts_host_and_port(tmp_path) -> None:
     findings = parse_nmap_xml(xml_path)
     assert {"type": "host", "host": "10.10.10.10", "value": "10.10.10.10"} in findings
     assert any(item["type"] == "port" and item["key"] == "80" for item in findings)
+    assert any(item.get("product") == "Apache httpd" and item.get("version") == "2.4.49" for item in findings)
 
 
 def test_parse_httpx_jsonl_extracts_rich_fields(tmp_path) -> None:
     output = tmp_path / "httpx.jsonl"
     output.write_text(
-        '{"url":"https://example.com","status_code":200,"title":"Example","tech":["nginx"],"webserver":"nginx","host":"93.184.216.34"}\n',
+        '{"url":"https://example.com","status_code":200,"title":"Example","tech":["nginx"],"webserver":"Apache/2.4.49","host":"93.184.216.34"}\n',
         encoding="utf-8",
     )
     findings = parse_projectdiscovery_output("httpx", output)
     assert findings[0]["type"] == "http_service"
     assert findings[0]["status_code"] == "200"
-    assert findings[0]["webserver"] == "nginx"
+    assert findings[0]["webserver"] == "Apache/2.4.49"
+    assert findings[0]["product"] == "Apache"
+    assert findings[0]["version"] == "2.4.49"
 
 
 def test_parse_dnsx_jsonl_extracts_records(tmp_path) -> None:

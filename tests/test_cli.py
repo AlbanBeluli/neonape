@@ -55,6 +55,15 @@ def test_parse_db_domain_view() -> None:
     assert args.limit == 10
 
 
+def test_parse_review_command() -> None:
+    parser = build_parser()
+    args = parser.parse_args(["review", "--target", "example.com", "--limit", "25", "--json"])
+    assert args.command == "review"
+    assert args.target == "example.com"
+    assert args.limit == 25
+    assert args.json is True
+
+
 def test_parse_export_command() -> None:
     parser = build_parser()
     args = parser.parse_args(["export", "scans", "--output", "scans.json", "--format", "json", "--limit", "10"])

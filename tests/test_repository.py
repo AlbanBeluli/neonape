@@ -16,6 +16,7 @@ from neon_ape.db.repository import (
     recent_findings,
     recent_scans,
     record_scan,
+    review_overview,
     seed_checklist_from_file,
     store_note,
 )
@@ -178,3 +179,75 @@ def test_domain_overview_collects_scans_findings_and_notes() -> None:
     assert len(overview["scans"]) == 1
     assert len(overview["findings"]) == 1
     assert len(overview["notes"]) == 1
+    assert len(overview["inventory"]) == 1
+
+
+def test_record_scan_creates_review_entries_for_risky_services_and_nuclei() -> None:
+    root = Path(__file__).resolve().parents[1]
+    connection = _connection()
+    initialize_database(connection, root / "neon_ape" / "db" / "schema.sql")
+
+    record_scan(
+        connection,
+        ToolResult(tool_name="nmap", target="10.10.10.10", command=["nmap"], exit_code=0),
+        [
+            {
+                "type": "port",
+                "host": "10.10.10.10",
+                "key": "80",
+                "value": "http Apache httpd 2.4.49 (open)",
+                "service_name": "http",
+                "product": "Apache httpd",
+                "version": "2.4.49",
+                "protocol": "tcp",
+            }
+        ],
+    )
+    record_scan(
+        connection,
+        ToolResult(tool_name="nuclei", target="https://example.com", command=["nuclei"], exit_code=0),
+        [
+            {
+                "type": "nuclei_finding",
+                "host": "https://example.com/login",
+                "key": "exposed-login",
+                "template_id": "exposed-login",
+                "name": "Exposed Login",
+                "severity": "high",
+                "value": "high Exposed Login",
+            }
+        ],
+    )
+
+    overview = review_overview(connection, "example.com", limit=10)
+    apache_overview = review_overview(connection, "10.10.10.10", limit=10)
+
+    assert len(apache_overview["inventory"]) == 1
+    assert any(item["finding_key"] == "apache-httpd-2.4.49" for item in apache_overview["reviews"])
+    assert any(item["finding_key"] == "exposed-login" for item in overview["reviews"])
+
+
+def test_review_overview_deduplicates_repeated_inventory_and_review_rows() -> None:
+    root = Path(__file__).resolve().parents[1]
+    connection = _connection()
+    initialize_database(connection, root / "neon_ape" / "db" / "schema.sql")
+
+    repeated_finding = [
+        {
+            "type": "port",
+            "host": "10.10.10.10",
+            "key": "80",
+            "value": "http Apache httpd 2.4.49 (open)",
+            "service_name": "http",
+            "product": "Apache httpd",
+            "version": "2.4.49",
+            "protocol": "tcp",
+        }
+    ]
+    record_scan(connection, ToolResult(tool_name="nmap", target="10.10.10.10", command=["nmap"], exit_code=0), repeated_finding)
+    record_scan(connection, ToolResult(tool_name="nmap", target="10.10.10.10", command=["nmap"], exit_code=0), repeated_finding)
+
+    overview = review_overview(connection, "10.10.10.10", limit=20)
+
+    assert len(overview["inventory"]) == 1
+    assert len(overview["reviews"]) == 1

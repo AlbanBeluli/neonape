@@ -36,13 +36,30 @@ def parse_nmap_xml(xml_path: Path) -> list[dict[str, str]]:
             service = port.find("service")
             state = port.find("state")
             service_name = service.attrib.get("name", "") if service is not None else ""
+            product = service.attrib.get("product", "") if service is not None else ""
+            version = service.attrib.get("version", "") if service is not None else ""
+            extrainfo = service.attrib.get("extrainfo", "") if service is not None else ""
             port_id = port.attrib.get("portid", "")
+            protocol = port.attrib.get("protocol", "")
+            value_parts = [service_name or "unknown"]
+            if product:
+                value_parts.append(product)
+            if version:
+                value_parts.append(version)
+            if extrainfo:
+                value_parts.append(extrainfo)
+            service_value = " ".join(part for part in value_parts if part).strip()
             findings.append(
                 {
                     "type": "port",
                     "host": host_value,
                     "key": port_id,
-                    "value": f"{service_name or 'unknown'} ({state.attrib.get('state', 'unknown') if state is not None else 'unknown'})",
+                    "value": f"{service_value or 'unknown'} ({state.attrib.get('state', 'unknown') if state is not None else 'unknown'})",
+                    "service_name": service_name,
+                    "product": product,
+                    "version": version,
+                    "extrainfo": extrainfo,
+                    "protocol": protocol,
                 }
             )
     return findings

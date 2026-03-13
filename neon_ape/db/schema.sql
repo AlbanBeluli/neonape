@@ -60,6 +60,37 @@ CREATE TABLE IF NOT EXISTS tool_history (
     created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
+CREATE TABLE IF NOT EXISTS service_inventory (
+    id INTEGER PRIMARY KEY,
+    scan_run_id INTEGER NOT NULL,
+    host TEXT NOT NULL,
+    port INTEGER,
+    protocol TEXT,
+    service_name TEXT,
+    product TEXT,
+    version TEXT,
+    source_tool TEXT NOT NULL,
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (scan_run_id) REFERENCES scan_runs(id)
+);
+
+CREATE TABLE IF NOT EXISTS review_findings (
+    id INTEGER PRIMARY KEY,
+    scan_run_id INTEGER NOT NULL,
+    inventory_id INTEGER,
+    host TEXT NOT NULL,
+    source_tool TEXT NOT NULL,
+    finding_key TEXT NOT NULL,
+    title TEXT NOT NULL,
+    severity TEXT NOT NULL,
+    confidence TEXT NOT NULL,
+    recommendation TEXT NOT NULL,
+    evidence_json TEXT NOT NULL DEFAULT '{}',
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (scan_run_id) REFERENCES scan_runs(id),
+    FOREIGN KEY (inventory_id) REFERENCES service_inventory(id)
+);
+
 CREATE TABLE IF NOT EXISTS secrets (
     id INTEGER PRIMARY KEY,
     secret_name TEXT NOT NULL UNIQUE,
@@ -76,3 +107,9 @@ ON scan_runs (target);
 
 CREATE INDEX IF NOT EXISTS idx_scan_findings_run
 ON scan_findings (scan_run_id);
+
+CREATE INDEX IF NOT EXISTS idx_service_inventory_host
+ON service_inventory (host);
+
+CREATE INDEX IF NOT EXISTS idx_review_findings_host
+ON review_findings (host);

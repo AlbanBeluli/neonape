@@ -34,6 +34,8 @@ def build_parser() -> argparse.ArgumentParser:
             "  neonape db findings\n"
             "  neonape db domain --target example.com\n"
             "  neonape db cleanup-history\n\n"
+            "Review:\n"
+            "  neonape review --target example.com\n\n"
             "Maintenance:\n"
             "  neonape uninstall\n"
             "  neonape uninstall --purge-data --yes\n\n"
@@ -62,6 +64,10 @@ def build_parser() -> argparse.ArgumentParser:
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     subparsers = parser.add_subparsers(dest="command")
+    review_parser = subparsers.add_parser("review", help="Show normalized service inventory and local review matches for a target.")
+    review_parser.add_argument("--target", required=True, help="Domain, host, or target string to review.")
+    review_parser.add_argument("--limit", type=int, default=50, help="Maximum number of rows per section to show.")
+    review_parser.add_argument("--json", action="store_true", help="Emit JSON instead of Rich tables.")
     db_parser = subparsers.add_parser("db", help="Inspect stored SQLite data through built-in read-only views.")
     db_subparsers = db_parser.add_subparsers(dest="db_command", required=True)
     db_tables_parser = db_subparsers.add_parser("tables", help="List Neon Ape database tables.")
@@ -172,6 +178,9 @@ def main() -> int:
     args = build_parser().parse_args()
     app = NeonApeApp()
     app.command = args.command
+    app.review_target = getattr(args, "target", None) if args.command == "review" else None
+    app.review_limit = getattr(args, "limit", 50) if args.command == "review" else 50
+    app.review_json_output = getattr(args, "json", False) if args.command == "review" else False
     app.db_command = getattr(args, "db_command", None)
     app.db_limit = getattr(args, "limit", 20)
     app.db_tool = getattr(args, "tool", None)

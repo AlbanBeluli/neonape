@@ -4,6 +4,7 @@ import json
 from pathlib import Path
 import re
 import sqlite3
+from urllib.parse import urlparse
 
 from neon_ape.tools.base import ToolResult
 
@@ -12,6 +13,7 @@ def initialize_database(connection: sqlite3.Connection, schema_path: Path) -> No
     with schema_path.open("r", encoding="utf-8") as handle:
         connection.executescript(handle.read())
     _ensure_checklist_action_columns(connection)
+    _backfill_intelligence(connection)
     connection.commit()
 
 
@@ -202,6 +204,7 @@ def record_scan(
             result.exit_code,
         ),
     )
+    _ingest_inventory_and_reviews(connection, scan_run_id, result.tool_name, findings)
     connection.commit()
 
 
@@ -297,11 +300,48 @@ def domain_overview(
         """,
         (pattern, pattern, limit),
     ).fetchall()
+    inventory = connection.execute(
+        """
+        SELECT id, scan_run_id, host, port, protocol, service_name, product, version, source_tool
+        FROM service_inventory
+        WHERE host LIKE ?
+           OR COALESCE(product, '') LIKE ?
+           OR COALESCE(version, '') LIKE ?
+        ORDER BY id DESC
+        LIMIT ?
+        """,
+        (pattern, pattern, pattern, limit),
+    ).fetchall()
+    reviews = connection.execute(
+        """
+        SELECT id, scan_run_id, host, source_tool, finding_key, title, severity, confidence, recommendation
+        FROM review_findings
+        WHERE host LIKE ?
+           OR title LIKE ?
+           OR recommendation LIKE ?
+           OR evidence_json LIKE ?
+        ORDER BY id DESC
+        LIMIT ?
+        """,
+        (pattern, pattern, pattern, pattern, limit),
+    ).fetchall()
     return {
         "scans": [dict(row) for row in scans],
         "findings": [dict(row) for row in findings],
         "notes": [dict(row) for row in notes],
+        "inventory": _dedupe_inventory_rows([dict(row) for row in inventory]),
+        "reviews": _dedupe_review_rows([dict(row) for row in reviews]),
     }
+
+
+def review_overview(
+    connection: sqlite3.Connection,
+    target: str,
+    *,
+    limit: int = 50,
+) -> dict[str, list[dict[str, str | int | None]]]:
+    overview = domain_overview(connection, target, limit=limit)
+    return {"inventory": overview["inventory"], "reviews": overview["reviews"]}
 
 
 def store_note(
@@ -395,6 +435,311 @@ def normalize_batch_history_labels(connection: sqlite3.Connection) -> dict[str, 
 
     connection.commit()
     return {"scan_runs_updated": scan_updates, "tool_history_updated": history_updates}
+
+
+def _ingest_inventory_and_reviews(
+    connection: sqlite3.Connection,
+    scan_run_id: int,
+    tool_name: str,
+    findings: list[dict[str, str]],
+) -> None:
+    inventory_ids = _insert_inventory_records(connection, scan_run_id, tool_name, findings)
+    _insert_review_records(connection, scan_run_id, tool_name, findings, inventory_ids)
+
+
+def _insert_inventory_records(
+    connection: sqlite3.Connection,
+    scan_run_id: int,
+    tool_name: str,
+    findings: list[dict[str, str]],
+) -> dict[tuple[str, str, str, str, str], int]:
+    inventory_ids: dict[tuple[str, str, str, str, str], int] = {}
+    for record in _inventory_records(tool_name, findings):
+        cursor = connection.execute(
+            """
+            INSERT INTO service_inventory (
+                scan_run_id, host, port, protocol, service_name, product, version, source_tool
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                scan_run_id,
+                record["host"],
+                record["port"],
+                record["protocol"],
+                record["service_name"],
+                record["product"],
+                record["version"],
+                tool_name,
+            ),
+        )
+        marker = (
+            str(record["host"]),
+            str(record["port"]),
+            str(record["protocol"]),
+            str(record["product"]),
+            str(record["version"]),
+        )
+        inventory_ids[marker] = int(cursor.lastrowid)
+    return inventory_ids
+
+
+def _insert_review_records(
+    connection: sqlite3.Connection,
+    scan_run_id: int,
+    tool_name: str,
+    findings: list[dict[str, str]],
+    inventory_ids: dict[tuple[str, str, str, str, str], int],
+) -> None:
+    for review in _review_records(tool_name, findings, inventory_ids):
+        connection.execute(
+            """
+            INSERT INTO review_findings (
+                scan_run_id, inventory_id, host, source_tool, finding_key, title, severity, confidence, recommendation, evidence_json
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                scan_run_id,
+                review.get("inventory_id"),
+                review["host"],
+                tool_name,
+                review["finding_key"],
+                review["title"],
+                review["severity"],
+                review["confidence"],
+                review["recommendation"],
+                json.dumps(review["evidence"], sort_keys=True),
+            ),
+        )
+
+
+def _backfill_intelligence(connection: sqlite3.Connection) -> None:
+    scan_rows = connection.execute(
+        """
+        SELECT
+            sr.id,
+            sr.tool_name,
+            EXISTS(SELECT 1 FROM service_inventory si WHERE si.scan_run_id = sr.id) AS has_inventory,
+            EXISTS(SELECT 1 FROM review_findings rf WHERE rf.scan_run_id = sr.id) AS has_reviews
+        FROM scan_runs sr
+        ORDER BY sr.id ASC
+        """
+    ).fetchall()
+    for scan in scan_rows:
+        findings_rows = connection.execute(
+            """
+            SELECT metadata_json
+            FROM scan_findings
+            WHERE scan_run_id = ?
+            ORDER BY id ASC
+            """,
+            (scan["id"],),
+        ).fetchall()
+        findings: list[dict[str, str]] = []
+        for row in findings_rows:
+            try:
+                payload = json.loads(row["metadata_json"])
+            except json.JSONDecodeError:
+                continue
+            if isinstance(payload, dict):
+                findings.append({str(key): str(value) for key, value in payload.items()})
+        if findings:
+            inventory_ids: dict[tuple[str, str, str, str, str], int] = {}
+            if not int(scan["has_inventory"]):
+                inventory_ids = _insert_inventory_records(connection, int(scan["id"]), str(scan["tool_name"]), findings)
+            else:
+                for existing in connection.execute(
+                    """
+                    SELECT id, host, port, protocol, product, version
+                    FROM service_inventory
+                    WHERE scan_run_id = ?
+                    """,
+                    (scan["id"],),
+                ).fetchall():
+                    inventory_ids[
+                        (
+                            str(existing["host"]),
+                            str(existing["port"]),
+                            str(existing["protocol"]),
+                            str(existing["product"] or ""),
+                            str(existing["version"] or ""),
+                        )
+                    ] = int(existing["id"])
+            if not int(scan["has_reviews"]):
+                _insert_review_records(connection, int(scan["id"]), str(scan["tool_name"]), findings, inventory_ids)
+
+
+def _inventory_records(tool_name: str, findings: list[dict[str, str]]) -> list[dict[str, object]]:
+    records: list[dict[str, object]] = []
+    seen: set[tuple[str, str, str, str, str]] = set()
+    for finding in findings:
+        record: dict[str, object] | None = None
+        if tool_name == "nmap" and finding.get("type") == "port":
+            record = {
+                "host": finding.get("host", ""),
+                "port": _to_int(finding.get("key")),
+                "protocol": finding.get("protocol", ""),
+                "service_name": finding.get("service_name", ""),
+                "product": finding.get("product", ""),
+                "version": finding.get("version", ""),
+            }
+        elif tool_name == "httpx" and finding.get("type") == "http_service":
+            host = _http_host(finding.get("host", ""))
+            record = {
+                "host": host,
+                "port": _to_int(finding.get("port")),
+                "protocol": finding.get("scheme", "http"),
+                "service_name": "http",
+                "product": finding.get("product", ""),
+                "version": finding.get("version", ""),
+            }
+        if not record or not record["host"]:
+            continue
+        marker = (
+            str(record["host"]),
+            str(record["port"]),
+            str(record["protocol"]),
+            str(record["product"]),
+            str(record["version"]),
+        )
+        if marker in seen:
+            continue
+        seen.add(marker)
+        records.append(record)
+    return records
+
+
+def _review_records(
+    tool_name: str,
+    findings: list[dict[str, str]],
+    inventory_ids: dict[tuple[str, str, str, str, str], int],
+) -> list[dict[str, object]]:
+    reviews: list[dict[str, object]] = []
+    seen: set[tuple[str, str, str]] = set()
+
+    if tool_name in {"nmap", "httpx"}:
+        for record in _inventory_records(tool_name, findings):
+            match = _match_known_service_risk(str(record["product"]), str(record["version"]))
+            if not match:
+                continue
+            marker = (
+                str(record["host"]),
+                match["finding_key"],
+                match["severity"],
+            )
+            if marker in seen:
+                continue
+            seen.add(marker)
+            inventory_id = inventory_ids.get(
+                (
+                    str(record["host"]),
+                    str(record["port"]),
+                    str(record["protocol"]),
+                    str(record["product"]),
+                    str(record["version"]),
+                )
+            )
+            reviews.append(
+                {
+                    "inventory_id": inventory_id,
+                    "host": str(record["host"]),
+                    "finding_key": match["finding_key"],
+                    "title": match["title"],
+                    "severity": match["severity"],
+                    "confidence": "medium",
+                    "recommendation": match["recommendation"],
+                    "evidence": record,
+                }
+            )
+
+    if tool_name == "nuclei":
+        for finding in findings:
+            if finding.get("type") != "nuclei_finding":
+                continue
+            severity = str(finding.get("severity", "info")).lower()
+            if severity not in {"medium", "high", "critical"}:
+                continue
+            marker = (finding.get("host", ""), finding.get("key", ""), severity)
+            if marker in seen:
+                continue
+            seen.add(marker)
+            reviews.append(
+                {
+                    "inventory_id": None,
+                    "host": finding.get("host", ""),
+                    "finding_key": finding.get("template_id", finding.get("key", "")),
+                    "title": finding.get("name", finding.get("value", "Nuclei finding")),
+                    "severity": severity,
+                    "confidence": "high",
+                    "recommendation": "Prioritize manual validation, patch review, and exposure reduction for this template match.",
+                    "evidence": finding,
+                }
+            )
+    return reviews
+
+
+def _match_known_service_risk(product: str, version: str) -> dict[str, str] | None:
+    normalized_product = product.lower().strip()
+    normalized_version = version.strip()
+    if "apache" in normalized_product and normalized_version in {"2.4.49", "2.4.50"}:
+        return {
+            "finding_key": f"apache-httpd-{normalized_version}",
+            "title": f"Apache httpd {normalized_version} requires urgent review",
+            "severity": "high",
+            "recommendation": "Review current patch level and exposure immediately. This version family is widely scrutinized and should be upgraded promptly after manual validation.",
+        }
+    if normalized_product == "openssl" and normalized_version == "1.0.1":
+        return {
+            "finding_key": "openssl-1.0.1",
+            "title": "OpenSSL 1.0.1 requires manual review",
+            "severity": "high",
+            "recommendation": "Confirm exact patch level and replace this legacy OpenSSL branch where possible after manual validation.",
+        }
+    return None
+
+
+def _to_int(value: object) -> int | None:
+    try:
+        return int(str(value))
+    except (TypeError, ValueError):
+        return None
+
+
+def _http_host(value: str) -> str:
+    parsed = urlparse(value)
+    if parsed.hostname:
+        return parsed.hostname
+    return value
+
+
+def _dedupe_inventory_rows(rows: list[dict[str, str | int | None]]) -> list[dict[str, str | int | None]]:
+    unique: dict[tuple[str, str, str, str, str], dict[str, str | int | None]] = {}
+    for row in rows:
+        marker = (
+            str(row.get("host", "")),
+            str(row.get("port", "")),
+            str(row.get("protocol", "")),
+            str(row.get("product", "")),
+            str(row.get("version", "")),
+        )
+        current = unique.get(marker)
+        if current is None or int(row.get("id", 0) or 0) > int(current.get("id", 0) or 0):
+            unique[marker] = row
+    return sorted(unique.values(), key=lambda item: int(item.get("id", 0) or 0), reverse=True)
+
+
+def _dedupe_review_rows(rows: list[dict[str, str | int | None]]) -> list[dict[str, str | int | None]]:
+    unique: dict[tuple[str, str, str, str], dict[str, str | int | None]] = {}
+    for row in rows:
+        marker = (
+            str(row.get("host", "")),
+            str(row.get("source_tool", "")),
+            str(row.get("finding_key", "")),
+            str(row.get("severity", "")),
+        )
+        current = unique.get(marker)
+        if current is None or int(row.get("id", 0) or 0) > int(current.get("id", 0) or 0):
+            unique[marker] = row
+    return sorted(unique.values(), key=lambda item: int(item.get("id", 0) or 0), reverse=True)
 
 
 def export_scan_bundle(

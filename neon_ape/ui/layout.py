@@ -45,6 +45,7 @@ def build_interactive_actions() -> Table:
     table.add_row("5", "Open DB views")
     table.add_row("6", "Export scans or findings")
     table.add_row("7", "Encrypted notes")
-    table.add_row("8", "Refresh screen")
+    table.add_row("8", "Review summary")
+    table.add_row("9", "Refresh screen")
     table.add_row("q", "Exit")
     return table

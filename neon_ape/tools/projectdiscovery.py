@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from urllib.parse import urlparse
 
 from neon_ape.tools.base import ToolResult, run_command
 from neon_ape.services.validation import validate_domain, validate_target, validate_url_or_target
@@ -127,6 +128,10 @@ def _parse_payload(tool_name: str, payload: dict[str, object]) -> list[dict[str,
         webserver = str(payload.get("webserver", ""))
         ip = str(payload.get("host", payload.get("ip", "")))
         content_type = str(payload.get("content_type", ""))
+        parsed = urlparse(url)
+        port = str(parsed.port or (443 if parsed.scheme == "https" else 80 if parsed.scheme == "http" else ""))
+        scheme = parsed.scheme
+        product, version = _split_product_version(webserver)
         value = " ".join(part for part in (status_code, title, technologies) if part).strip()
         return [
             {
@@ -140,6 +145,10 @@ def _parse_payload(tool_name: str, payload: dict[str, object]) -> list[dict[str,
                 "webserver": webserver,
                 "ip": ip,
                 "content_type": content_type,
+                "port": port,
+                "scheme": scheme,
+                "product": product,
+                "version": version,
             }
         ]
 
@@ -248,3 +257,12 @@ def _deduplicate_findings(findings: list[dict[str, str]]) -> list[dict[str, str]
         seen.add(marker)
         unique.append(finding)
     return unique
+
+
+def _split_product_version(value: str) -> tuple[str, str]:
+    if not value:
+        return "", ""
+    if "/" not in value:
+        return value.strip(), ""
+    product, version = value.split("/", 1)
+    return product.strip(), version.strip()

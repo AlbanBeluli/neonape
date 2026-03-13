@@ -241,9 +241,70 @@ def build_domain_summary_panel(target: str, overview: dict[str, list[dict[str, s
         f"[bold]Query:[/bold] {target}\n"
         f"[bold]Scans:[/bold] {len(overview.get('scans', []))}\n"
         f"[bold]Findings:[/bold] {len(overview.get('findings', []))}\n"
+        f"[bold]Inventory:[/bold] {len(overview.get('inventory', []))}\n"
+        f"[bold]Review Matches:[/bold] {len(overview.get('reviews', []))}\n"
         f"[bold]Notes:[/bold] {len(overview.get('notes', []))}"
     )
     return Panel.fit(body, title="Domain Overview", style=section_style("accent"))
+
+
+def build_inventory_table(rows: list[dict[str, str | int | None]]) -> Table:
+    table = Table(title="Service Inventory", expand=False)
+    table.add_column("Host", style="bold")
+    table.add_column("Port")
+    table.add_column("Proto")
+    table.add_column("Service")
+    table.add_column("Product")
+    table.add_column("Version")
+    if not rows:
+        table.add_row("-", "-", "-", "-", "-", "-")
+        return table
+    for row in rows:
+        table.add_row(
+            str(row.get("host", "-")),
+            str(row.get("port", "-")),
+            str(row.get("protocol", "-")),
+            str(row.get("service_name", "-") or "-"),
+            str(row.get("product", "-") or "-"),
+            str(row.get("version", "-") or "-"),
+        )
+    return table
+
+
+def build_review_findings_table(rows: list[dict[str, str | int | None]]) -> Table:
+    table = Table(title="Review Matches", expand=False)
+    table.add_column("Host", style="bold")
+    table.add_column("Severity")
+    table.add_column("Source")
+    table.add_column("Key")
+    table.add_column("Title")
+    if not rows:
+        table.add_row("-", "-", "-", "-", "-")
+        return table
+    for row in rows:
+        table.add_row(
+            str(row.get("host", "-")),
+            str(row.get("severity", "-")),
+            str(row.get("source_tool", "-")),
+            str(row.get("finding_key", "-")),
+            str(row.get("title", "-")),
+        )
+    return table
+
+
+def build_review_summary_panel(target: str, overview: dict[str, list[dict[str, str | int | None]]]) -> Panel:
+    severities = [str(item.get("severity", "")).lower() for item in overview.get("reviews", [])]
+    critical = sum(1 for value in severities if value == "critical")
+    high = sum(1 for value in severities if value == "high")
+    medium = sum(1 for value in severities if value == "medium")
+    body = (
+        f"[bold]Target:[/bold] {target}\n"
+        f"[bold]Inventory Entries:[/bold] {len(overview.get('inventory', []))}\n"
+        f"[bold]Critical:[/bold] {critical}\n"
+        f"[bold]High:[/bold] {high}\n"
+        f"[bold]Medium:[/bold] {medium}"
+    )
+    return Panel.fit(body, title="Smart Review", style=section_style("orange"))
 
 
 def _mask_target(value: str) -> str:

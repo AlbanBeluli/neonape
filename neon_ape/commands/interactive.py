@@ -9,6 +9,7 @@ from rich.prompt import Prompt
 
 from neon_ape.commands.db import run_db_view
 from neon_ape.commands.notes import run_add_note, run_list_notes, run_view_note
+from neon_ape.commands.review import run_review
 from neon_ape.commands.tools import (
     run_chained_recon_workflow,
     run_checklist_step,
@@ -50,7 +51,7 @@ def run_interactive_shell(
 
         choice = Prompt.ask(
             "[bold cyan]Select action[/bold cyan]",
-            choices=["1", "2", "3", "4", "5", "6", "7", "8", "q"],
+            choices=["1", "2", "3", "4", "5", "6", "7", "8", "9", "q"],
             default="1",
         )
         if choice == "1":
@@ -78,6 +79,9 @@ def run_interactive_shell(
             last_summary = _prompt_notes(console, connection, config)
             continue
         if choice == "8":
+            last_summary = _prompt_review(console, connection)
+            continue
+        if choice == "9":
             last_summary = "Screen refreshed."
             continue
         console.print("[bold green]Session closed.[/bold green]")
@@ -312,6 +316,24 @@ def _prompt_notes(console: Console, connection, config) -> str:
     run_view_note(console, connection, passphrase=passphrase, note_id=note_id)
     _pause(console)
     return f"Viewed note #{note_id}."
+
+
+def _prompt_review(console: Console, connection) -> str:
+    target = _ask_text(console, "Review target")
+    if target is None:
+        return "Returned from review summary."
+    limit_value = _ask_text(console, "Limit", default="20")
+    if limit_value is None:
+        return "Returned from review summary."
+    try:
+        limit = int(limit_value)
+    except ValueError:
+        console.print("[bold red]Limit must be a number.[/bold red]")
+        _pause(console)
+        return "Review limit input was invalid."
+    run_review(console, connection, target=target, limit=limit)
+    _pause(console)
+    return f"Reviewed {target}."
 
 
 def _pause(console: Console) -> None:

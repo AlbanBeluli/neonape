@@ -4,6 +4,7 @@ from rich.panel import Panel
 from rich.console import Console
 
 from neon_ape.commands.notes import run_add_note, run_notes_listing, run_view_note
+from neon_ape.commands.review import run_review
 from neon_ape.config import AppConfig, detect_installed_tools
 from neon_ape.db.repository import (
     checklist_summary,
@@ -34,6 +35,9 @@ class NeonApeApp:
         self.logger = None
         self.command: str | None = None
         self.db_command: str | None = None
+        self.review_target: str | None = None
+        self.review_limit = 50
+        self.review_json_output = False
         self.db_limit = 20
         self.db_tool: str | None = None
         self.db_finding_type: str | None = None
@@ -98,6 +102,16 @@ class NeonApeApp:
                 domain_target=self.db_domain_target,
                 as_json=self.db_json_output,
                 show_targets=self.show_targets,
+            )
+            return
+
+        if self.command == "review":
+            run_review(
+                self.console,
+                connection,
+                target=str(self.review_target),
+                limit=self.review_limit,
+                as_json=self.review_json_output,
             )
             return
 
