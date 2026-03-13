@@ -119,8 +119,12 @@ def _prompt_checklist_step(
     profile: str,
 ) -> tuple[str, str]:
     console.print(build_checklist_table(checklist_items))
-    step_value = Prompt.ask("[bold cyan]Checklist step[/bold cyan]")
-    target = Prompt.ask("[bold cyan]Target[/bold cyan]")
+    step_value = _ask_text(console, "Checklist step")
+    if step_value is None:
+        return profile, "Returned from checklist step selection."
+    target = _ask_text(console, "Target")
+    if target is None:
+        return profile, "Returned from checklist step selection."
     try:
         step_order = int(step_value)
     except ValueError:
@@ -152,16 +156,22 @@ def _prompt_single_tool(
 ) -> str:
     tool_name = Prompt.ask(
         "[bold cyan]Tool[/bold cyan]",
-        choices=["nmap", "subfinder", "dnsx", "httpx", "naabu", "nuclei"],
+        choices=["nmap", "subfinder", "dnsx", "httpx", "naabu", "nuclei", "b"],
         default="nmap",
     )
-    target = Prompt.ask("[bold cyan]Target[/bold cyan]")
+    if tool_name == "b":
+        return "Returned from tool selection."
+    target = _ask_text(console, "Target")
+    if target is None:
+        return "Returned from tool selection."
     if tool_name == "nmap":
         profile = Prompt.ask(
             "[bold cyan]Nmap profile[/bold cyan]",
-            choices=["host_discovery", "service_scan", "aggressive"],
+            choices=["host_discovery", "service_scan", "aggressive", "b"],
             default="service_scan",
         )
+        if profile == "b":
+            return "Returned from tool selection."
         success = run_nmap(console, connection, target=target, profile=profile, scan_dir=scan_dir)
         _pause(console)
         return f"Ran nmap:{profile} against {target}. Status: {'success' if success else 'failed'}."
@@ -177,10 +187,14 @@ def _prompt_single_tool(
 def _prompt_chained_workflow(console: Console, connection, scan_dir: Path) -> str:
     workflow = Prompt.ask(
         "[bold cyan]Workflow[/bold cyan]",
-        choices=["pd_chain", "pd_web_chain"],
+        choices=["pd_chain", "pd_web_chain", "b"],
         default="pd_chain",
     )
-    target = Prompt.ask("[bold cyan]Workflow target domain[/bold cyan]")
+    if workflow == "b":
+        return "Returned from workflow selection."
+    target = _ask_text(console, "Workflow target domain")
+    if target is None:
+        return "Returned from workflow selection."
     success = run_chained_recon_workflow(console, connection, target=target, scan_dir=scan_dir, workflow_name=workflow)
     _pause(console)
     return f"Ran {workflow} for {target}. Status: {'success' if success else 'failed'}."
@@ -195,28 +209,59 @@ def _prompt_db_view(
 ) -> None:
     view = Prompt.ask(
         "[bold cyan]DB view[/bold cyan]",
-        choices=["tables", "checklist", "scans", "findings"],
+        choices=["tables", "checklist", "scans", "findings", "domain", "b"],
         default="scans",
     )
+    if view == "b":
+        return
     limit = 20
-    if view in {"scans", "findings"}:
-        limit = int(Prompt.ask("[bold cyan]Limit[/bold cyan]", default="20"))
+    domain_target = None
+    if view in {"scans", "findings", "domain"}:
+        limit_value = _ask_text(console, "Limit", default="20")
+        if limit_value is None:
+            return
+        try:
+            limit = int(limit_value)
+        except ValueError:
+            console.print("[bold red]Limit must be a number.[/bold red]")
+            _pause(console)
+            return
+    if view == "domain":
+        domain_target = _ask_text(console, "Domain or target")
+        if domain_target is None:
+            return
     run_db_view(
         console,
         connection,
         view,
         checklist_items,
         limit=limit,
+        domain_target=domain_target,
         show_targets=show_targets,
     )
     _pause(console)
 
 
 def _prompt_export(console: Console, connection) -> None:
-    entity = Prompt.ask("[bold cyan]Export entity[/bold cyan]", choices=["scans", "findings"], default="scans")
-    output = Path(Prompt.ask("[bold cyan]Output file[/bold cyan]", default=f"{entity}.json"))
-    export_format = Prompt.ask("[bold cyan]Format[/bold cyan]", choices=["json", "csv"], default="json")
-    limit = int(Prompt.ask("[bold cyan]Limit[/bold cyan]", default="50"))
+    entity = Prompt.ask("[bold cyan]Export entity[/bold cyan]", choices=["scans", "findings", "b"], default="scans")
+    if entity == "b":
+        return
+    output_value = _ask_text(console, "Output file", default=f"{entity}.json")
+    if output_value is None:
+        return
+    output = Path(output_value)
+    export_format = Prompt.ask("[bold cyan]Format[/bold cyan]", choices=["json", "csv", "b"], default="json")
+    if export_format == "b":
+        return
+    limit_value = _ask_text(console, "Limit", default="50")
+    if limit_value is None:
+        return
+    try:
+        limit = int(limit_value)
+    except ValueError:
+        console.print("[bold red]Limit must be a number.[/bold red]")
+        _pause(console)
+        return
     run_export(
         console,
         connection,
@@ -229,23 +274,41 @@ def _prompt_export(console: Console, connection) -> None:
 
 
 def _prompt_notes(console: Console, connection, config) -> str:
-    action = Prompt.ask("[bold cyan]Notes[/bold cyan]", choices=["list", "add", "view"], default="list")
+    action = Prompt.ask("[bold cyan]Notes[/bold cyan]", choices=["list", "add", "view", "b"], default="list")
+    if action == "b":
+        return "Returned from notes menu."
     if action == "list":
         notes = list_note_headers(connection)
         run_list_notes(console, notes)
         _pause(console)
         return f"Viewed {len(notes)} encrypted note headers."
-    passphrase = getpass("Notes passphrase: ")
+    passphrase = _ask_secret("Notes passphrase")
+    if passphrase is None:
+        return "Returned from notes menu."
     if action == "add":
-        target = Prompt.ask("[bold cyan]Target[/bold cyan]", default="")
-        title = Prompt.ask("[bold cyan]Title[/bold cyan]")
-        body = Prompt.ask("[bold cyan]Body[/bold cyan]")
+        target = _ask_text(console, "Target", default="")
+        if target is None:
+            return "Returned from notes menu."
+        title = _ask_text(console, "Title")
+        if title is None:
+            return "Returned from notes menu."
+        body = _ask_text(console, "Body")
+        if body is None:
+            return "Returned from notes menu."
         note_id = run_add_note(console, connection, passphrase=passphrase, title=title, body=body, target=target or None)
         _pause(console)
         return f"Stored encrypted note #{note_id}."
     notes = list_note_headers(connection)
     run_list_notes(console, notes)
-    note_id = int(Prompt.ask("[bold cyan]Note ID[/bold cyan]"))
+    note_id_value = _ask_text(console, "Note ID")
+    if note_id_value is None:
+        return "Returned from notes menu."
+    try:
+        note_id = int(note_id_value)
+    except ValueError:
+        console.print("[bold red]Note ID must be a number.[/bold red]")
+        _pause(console)
+        return "Note view input was invalid."
     run_view_note(console, connection, passphrase=passphrase, note_id=note_id)
     _pause(console)
     return f"Viewed note #{note_id}."
@@ -253,3 +316,25 @@ def _prompt_notes(console: Console, connection, config) -> str:
 
 def _pause(console: Console) -> None:
     console.input("[bold cyan]Press Enter to continue[/bold cyan]")
+
+
+def _ask_text(console: Console, label: str, default: str | None = None) -> str | None:
+    value = console.input(f"[bold cyan]{label}[/bold cyan] (or `b` to go back){_default_suffix(default)}: ").strip()
+    if not value and default is not None:
+        return default
+    if value.lower() in {"b", "back"}:
+        return None
+    return value
+
+
+def _ask_secret(label: str) -> str | None:
+    value = getpass(f"{label} (or b to go back): ").strip()
+    if value.lower() in {"b", "back"}:
+        return None
+    return value
+
+
+def _default_suffix(default: str | None) -> str:
+    if default is None:
+        return ""
+    return f" [default: {default}]"

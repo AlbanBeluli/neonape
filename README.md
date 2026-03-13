@@ -264,6 +264,7 @@ neonape db tables
 neonape db checklist
 neonape db scans
 neonape db findings
+neonape db domain --target example.com
 neonape db cleanup-history
 ```
 
@@ -294,15 +295,3 @@ neonape import scans --input scans.json
 - Parameterized SQLite queries
 - Application-layer encryption for notes and secrets
 - No exploitation automation, brute force support, or post-exploitation workflow
-
-## Existing Files In This Repo
-
-The following legacy scripts remain in place as standalone references and are not part of the Neon Ape package:
-
-- [port_scanner.py](port_scanner.py)
-- [packet_sniffer.py](packet_sniffer.py)
-- [web_scraper.py](web_scraper.py)
-- [exploit_development.py](exploit_development.py)
-- [ssh_bruteforce.py](ssh_bruteforce.py)
-
-They should not be treated as production-safe components for the dashboard.

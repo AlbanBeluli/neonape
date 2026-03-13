@@ -2,11 +2,14 @@ import sqlite3
 from pathlib import Path
 
 from neon_ape.db.repository import (
+    domain_overview,
     export_scan_bundle,
     get_checklist_item,
+    get_note,
     import_scan_bundle,
     initialize_database,
     list_checklist_items,
+    list_note_headers,
     list_tables,
     mark_checklist_item_status,
     normalize_batch_history_labels,
@@ -14,6 +17,7 @@ from neon_ape.db.repository import (
     recent_scans,
     record_scan,
     seed_checklist_from_file,
+    store_note,
 )
 from neon_ape.tools.base import ToolResult
 
@@ -155,3 +159,22 @@ def test_normalize_batch_history_labels_rewrites_old_chained_rows() -> None:
     assert result == {"scan_runs_updated": 1, "tool_history_updated": 1}
     assert updated_scan["target"] == "pd_chain:stoic.ee:httpx"
     assert updated_history["target"] == "pd_chain:stoic.ee:naabu"
+
+
+def test_domain_overview_collects_scans_findings_and_notes() -> None:
+    root = Path(__file__).resolve().parents[1]
+    connection = _connection()
+    initialize_database(connection, root / "neon_ape" / "db" / "schema.sql")
+
+    record_scan(
+        connection,
+        ToolResult(tool_name="httpx", target="pd_web_chain:stoic.ee:httpx", command=["httpx"], exit_code=0),
+        [{"type": "http_service", "host": "https://www.stoic.ee", "key": "https://www.stoic.ee", "value": "200"}],
+    )
+    store_note(connection, target="stoic.ee", title="Portal", ciphertext=b"encrypted")
+
+    overview = domain_overview(connection, "stoic.ee", limit=10)
+
+    assert len(overview["scans"]) == 1
+    assert len(overview["findings"]) == 1
+    assert len(overview["notes"]) == 1

@@ -255,6 +255,55 @@ def recent_findings(
     return [dict(row) for row in rows]
 
 
+def domain_overview(
+    connection: sqlite3.Connection,
+    target: str,
+    *,
+    limit: int = 50,
+) -> dict[str, list[dict[str, str | int | None]]]:
+    pattern = f"%{target}%"
+    scans = connection.execute(
+        """
+        SELECT id, tool_name, target, status, raw_output_path, finished_at
+        FROM scan_runs
+        WHERE target LIKE ?
+        ORDER BY id DESC
+        LIMIT ?
+        """,
+        (pattern, limit),
+    ).fetchall()
+    findings = connection.execute(
+        """
+        SELECT sf.id, sf.scan_run_id, sf.finding_type, sf.key, sf.value
+        FROM scan_findings sf
+        LEFT JOIN scan_runs sr ON sr.id = sf.scan_run_id
+        WHERE sr.target LIKE ?
+           OR sf.key LIKE ?
+           OR sf.value LIKE ?
+           OR sf.metadata_json LIKE ?
+        ORDER BY sf.id DESC
+        LIMIT ?
+        """,
+        (pattern, pattern, pattern, pattern, limit),
+    ).fetchall()
+    notes = connection.execute(
+        """
+        SELECT id, target, title, created_at, updated_at
+        FROM notes
+        WHERE COALESCE(target, '') LIKE ?
+           OR title LIKE ?
+        ORDER BY updated_at DESC, id DESC
+        LIMIT ?
+        """,
+        (pattern, pattern, limit),
+    ).fetchall()
+    return {
+        "scans": [dict(row) for row in scans],
+        "findings": [dict(row) for row in findings],
+        "notes": [dict(row) for row in notes],
+    }
+
+
 def store_note(
     connection: sqlite3.Connection,
     *,

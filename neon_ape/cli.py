@@ -32,6 +32,7 @@ def build_parser() -> argparse.ArgumentParser:
             "  neonape db checklist\n"
             "  neonape db scans\n"
             "  neonape db findings\n"
+            "  neonape db domain --target example.com\n"
             "  neonape db cleanup-history\n\n"
             "Maintenance:\n"
             "  neonape uninstall\n"
@@ -75,6 +76,10 @@ def build_parser() -> argparse.ArgumentParser:
     db_findings_parser.add_argument("--limit", type=int, default=50, help="Maximum number of finding rows to show.")
     db_findings_parser.add_argument("--type", dest="finding_type", help="Filter findings by finding type.")
     db_findings_parser.add_argument("--json", action="store_true", help="Emit JSON instead of a Rich table.")
+    db_domain_parser = db_subparsers.add_parser("domain", help="Show stored scans, findings, and notes that match a domain or target string.")
+    db_domain_parser.add_argument("--target", dest="domain_target", required=True, help="Domain or target string to search for.")
+    db_domain_parser.add_argument("--limit", type=int, default=50, help="Maximum number of rows per section to show.")
+    db_domain_parser.add_argument("--json", action="store_true", help="Emit JSON instead of Rich tables.")
     db_subparsers.add_parser(
         "cleanup-history",
         help="Rewrite older chained httpx/naabu history rows to the newer stable workflow labels.",
@@ -171,6 +176,7 @@ def main() -> int:
     app.db_limit = getattr(args, "limit", 20)
     app.db_tool = getattr(args, "tool", None)
     app.db_finding_type = getattr(args, "finding_type", None)
+    app.db_domain_target = getattr(args, "domain_target", None)
     app.db_json_output = getattr(args, "json", False)
     app.export_entity = getattr(args, "export_entity", None)
     app.export_output = getattr(args, "output", None)

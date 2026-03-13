@@ -5,9 +5,16 @@ from pathlib import Path
 
 from rich.console import Console
 
-from neon_ape.db.repository import list_tables, normalize_batch_history_labels, recent_findings, recent_scans
+from neon_ape.db.repository import domain_overview, list_tables, normalize_batch_history_labels, recent_findings, recent_scans
 from neon_ape.ui.layout import build_checklist_table
-from neon_ape.ui.views import build_recent_findings_table, build_scans_table, build_tables_table, display_runtime_path
+from neon_ape.ui.views import (
+    build_domain_summary_panel,
+    build_notes_table,
+    build_recent_findings_table,
+    build_scans_table,
+    build_tables_table,
+    display_runtime_path,
+)
 
 
 def run_db_view(
@@ -19,6 +26,7 @@ def run_db_view(
     limit: int = 20,
     tool_name: str | None = None,
     finding_type: str | None = None,
+    domain_target: str | None = None,
     as_json: bool = False,
     show_targets: bool = False,
 ) -> None:
@@ -37,6 +45,25 @@ def run_db_view(
     if db_command == "findings":
         findings = recent_findings(connection, limit=limit, finding_type=finding_type)
         _emit(console, findings, build_recent_findings_table(findings), as_json=as_json)
+        return
+    if db_command == "domain":
+        if not domain_target:
+            console.print("[bold red]A domain or target query is required for `neonape db domain`.[/bold red]")
+            return
+        overview = domain_overview(connection, domain_target, limit=limit)
+        if as_json:
+            sanitized = {
+                "target": domain_target,
+                "scans": _sanitize_scans(overview["scans"], show_targets=show_targets),
+                "findings": overview["findings"],
+                "notes": overview["notes"],
+            }
+            console.print_json(json.dumps(sanitized))
+            return
+        console.print(build_domain_summary_panel(domain_target, overview))
+        console.print(build_scans_table(_sanitize_scans(overview["scans"], show_targets=show_targets), mask_targets=not show_targets))
+        console.print(build_recent_findings_table(overview["findings"]))
+        console.print(build_notes_table(overview["notes"]))
         return
     if db_command == "cleanup-history":
         result = normalize_batch_history_labels(connection)

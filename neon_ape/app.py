@@ -37,6 +37,7 @@ class NeonApeApp:
         self.db_limit = 20
         self.db_tool: str | None = None
         self.db_finding_type: str | None = None
+        self.db_domain_target: str | None = None
         self.db_json_output = False
         self.export_entity: str | None = None
         self.export_output: str | None = None
@@ -94,6 +95,7 @@ class NeonApeApp:
                 limit=self.db_limit,
                 tool_name=self.db_tool,
                 finding_type=self.db_finding_type,
+                domain_target=self.db_domain_target,
                 as_json=self.db_json_output,
                 show_targets=self.show_targets,
             )

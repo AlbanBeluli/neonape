@@ -236,6 +236,16 @@ def build_notes_table(notes: list[dict[str, str | int | None]]) -> Table:
     return table
 
 
+def build_domain_summary_panel(target: str, overview: dict[str, list[dict[str, str | int | None]]]) -> Panel:
+    body = (
+        f"[bold]Query:[/bold] {target}\n"
+        f"[bold]Scans:[/bold] {len(overview.get('scans', []))}\n"
+        f"[bold]Findings:[/bold] {len(overview.get('findings', []))}\n"
+        f"[bold]Notes:[/bold] {len(overview.get('notes', []))}"
+    )
+    return Panel.fit(body, title="Domain Overview", style=section_style("accent"))
+
+
 def _mask_target(value: str) -> str:
     if value in {"", "-"}:
         return value
