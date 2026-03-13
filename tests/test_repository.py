@@ -182,6 +182,33 @@ def test_domain_overview_collects_scans_findings_and_notes() -> None:
     assert len(overview["inventory"]) == 1
 
 
+def test_domain_and_review_overview_include_katana_and_gobuster_paths() -> None:
+    root = Path(__file__).resolve().parents[1]
+    connection = _connection()
+    initialize_database(connection, root / "neon_ape" / "db" / "schema.sql")
+
+    record_scan(
+        connection,
+        ToolResult(tool_name="katana", target="https://app.example.com", command=["katana"], exit_code=0),
+        [{"type": "web_path", "host": "https://app.example.com/app.js", "key": "https://app.example.com/app.js", "value": "crawl"}],
+    )
+    record_scan(
+        connection,
+        ToolResult(tool_name="gobuster", target="https://app.example.com", command=["gobuster"], exit_code=0),
+        [{"type": "web_path", "host": "/admin", "key": "/admin", "value": "301"}],
+    )
+
+    domain = domain_overview(connection, "app.example.com", limit=20)
+    review = review_overview(connection, "app.example.com", limit=20)
+
+    assert len(domain["web_paths"]["katana"]) == 1
+    assert len(domain["web_paths"]["gobuster"]) == 1
+    assert domain["web_paths"]["katana"][0]["host"] == "https://app.example.com/app.js"
+    assert domain["web_paths"]["gobuster"][0]["host"] == "/admin"
+    assert len(review["web_paths"]["katana"]) == 1
+    assert len(review["web_paths"]["gobuster"]) == 1
+
+
 def test_record_scan_creates_review_entries_for_risky_services_and_nuclei() -> None:
     root = Path(__file__).resolve().parents[1]
     connection = _connection()

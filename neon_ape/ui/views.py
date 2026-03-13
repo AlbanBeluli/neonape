@@ -277,10 +277,15 @@ def build_notes_table(notes: list[dict[str, str | int | None]]) -> Table:
 
 
 def build_domain_summary_panel(target: str, overview: dict[str, list[dict[str, str | int | None]]]) -> Panel:
+    web_paths = overview.get("web_paths", {})
+    katana_count = len(web_paths.get("katana", [])) if isinstance(web_paths, dict) else 0
+    gobuster_count = len(web_paths.get("gobuster", [])) if isinstance(web_paths, dict) else 0
     body = (
         f"[bold]Query:[/bold] {target}\n"
         f"[bold]Scans:[/bold] {len(overview.get('scans', []))}\n"
         f"[bold]Findings:[/bold] {len(overview.get('findings', []))}\n"
+        f"[bold]Katana Paths:[/bold] {katana_count}\n"
+        f"[bold]Gobuster Paths:[/bold] {gobuster_count}\n"
         f"[bold]Inventory:[/bold] {len(overview.get('inventory', []))}\n"
         f"[bold]Review Matches:[/bold] {len(overview.get('reviews', []))}\n"
         f"[bold]Notes:[/bold] {len(overview.get('notes', []))}"
@@ -337,9 +342,14 @@ def build_review_summary_panel(target: str, overview: dict[str, list[dict[str, s
     critical = sum(1 for value in severities if value == "critical")
     high = sum(1 for value in severities if value == "high")
     medium = sum(1 for value in severities if value == "medium")
+    web_paths = overview.get("web_paths", {})
+    katana_count = len(web_paths.get("katana", [])) if isinstance(web_paths, dict) else 0
+    gobuster_count = len(web_paths.get("gobuster", [])) if isinstance(web_paths, dict) else 0
     body = (
         f"[bold]Target:[/bold] {target}\n"
         f"[bold]Inventory Entries:[/bold] {len(overview.get('inventory', []))}\n"
+        f"[bold]Katana Paths:[/bold] {katana_count}\n"
+        f"[bold]Gobuster Paths:[/bold] {gobuster_count}\n"
         f"[bold]Critical:[/bold] {critical}\n"
         f"[bold]High:[/bold] {high}\n"
         f"[bold]Medium:[/bold] {medium}"
@@ -347,10 +357,14 @@ def build_review_summary_panel(target: str, overview: dict[str, list[dict[str, s
     return Panel.fit(body, title="Smart Review", style=section_style("orange"))
 
 
-def build_web_path_table(findings: list[dict[str, str]], tool_name: str) -> Table:
+def build_web_path_table(findings: list[dict[str, str | int | None]], tool_name: str) -> Table:
     table = Table(title=f"{tool_name.title()} Findings", expand=False)
-    table.add_column("Path", style="bold")
-    table.add_column("Value")
+    if tool_name == "gobuster":
+        table.add_column("Path", style="bold")
+        table.add_column("Status")
+    else:
+        table.add_column("Path", style="bold")
+        table.add_column("Source")
     if not findings:
         table.add_row("-", "-")
         return table

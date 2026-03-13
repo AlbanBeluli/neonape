@@ -15,6 +15,7 @@ from neon_ape.ui.views import (
     build_review_findings_table,
     build_scans_table,
     build_tables_table,
+    build_web_path_table,
     display_runtime_path,
 )
 
@@ -58,13 +59,18 @@ def run_db_view(
                 "target": domain_target,
                 "scans": _sanitize_scans(overview["scans"], show_targets=show_targets),
                 "findings": overview["findings"],
+                "web_paths": overview["web_paths"],
                 "notes": overview["notes"],
+                "inventory": overview["inventory"],
+                "reviews": overview["reviews"],
             }
             console.print_json(json.dumps(sanitized))
             return
         console.print(build_domain_summary_panel(domain_target, overview))
         console.print(build_scans_table(_sanitize_scans(overview["scans"], show_targets=show_targets), mask_targets=not show_targets))
         console.print(build_recent_findings_table(overview["findings"]))
+        console.print(build_web_path_table(overview["web_paths"]["katana"], "katana"))
+        console.print(build_web_path_table(overview["web_paths"]["gobuster"], "gobuster"))
         console.print(build_inventory_table(overview["inventory"]))
         console.print(build_review_findings_table(overview["reviews"]))
         console.print(build_notes_table(overview["notes"]))

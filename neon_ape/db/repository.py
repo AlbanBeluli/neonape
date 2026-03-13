@@ -298,6 +298,29 @@ def domain_overview(
         """,
         (pattern, pattern, pattern, pattern, limit),
     ).fetchall()
+    web_paths = connection.execute(
+        """
+        SELECT
+            sf.id,
+            sf.scan_run_id,
+            sr.tool_name,
+            sf.key,
+            sf.value,
+            sf.metadata_json
+        FROM scan_findings sf
+        LEFT JOIN scan_runs sr ON sr.id = sf.scan_run_id
+        WHERE sf.finding_type = 'web_path'
+          AND (
+                sr.target LIKE ?
+             OR sf.key LIKE ?
+             OR sf.value LIKE ?
+             OR sf.metadata_json LIKE ?
+          )
+        ORDER BY sf.id DESC
+        LIMIT ?
+        """,
+        (pattern, pattern, pattern, pattern, limit),
+    ).fetchall()
     notes = connection.execute(
         """
         SELECT id, target, title, created_at, updated_at
@@ -337,6 +360,7 @@ def domain_overview(
     return {
         "scans": [dict(row) for row in scans],
         "findings": [dict(row) for row in findings],
+        "web_paths": _split_web_paths([dict(row) for row in web_paths]),
         "notes": [dict(row) for row in notes],
         "inventory": _dedupe_inventory_rows([dict(row) for row in inventory]),
         "reviews": _dedupe_review_rows([dict(row) for row in reviews]),
@@ -350,7 +374,46 @@ def review_overview(
     limit: int = 50,
 ) -> dict[str, list[dict[str, str | int | None]]]:
     overview = domain_overview(connection, target, limit=limit)
-    return {"inventory": overview["inventory"], "reviews": overview["reviews"]}
+    return {
+        "inventory": overview["inventory"],
+        "reviews": overview["reviews"],
+        "web_paths": overview["web_paths"],
+    }
+
+
+def _split_web_paths(rows: list[dict[str, str | int | None]]) -> dict[str, list[dict[str, str | int | None]]]:
+    result = {"katana": [], "gobuster": []}
+    seen: dict[str, set[tuple[str, str]]] = {"katana": set(), "gobuster": set()}
+    for row in rows:
+        tool_name = str(row.get("tool_name", "") or "")
+        if tool_name not in result:
+            continue
+        metadata = _load_metadata_json(row.get("metadata_json"))
+        host = str(metadata.get("host", row.get("key", "-")))
+        value = str(metadata.get("value", row.get("value", "-")))
+        marker = (host, value)
+        if marker in seen[tool_name]:
+            continue
+        seen[tool_name].add(marker)
+        result[tool_name].append(
+            {
+                "host": host,
+                "key": str(row.get("key", host)),
+                "value": value,
+                "tool_name": tool_name,
+            }
+        )
+    return result
+
+
+def _load_metadata_json(value: object) -> dict[str, object]:
+    if not value:
+        return {}
+    try:
+        data = json.loads(str(value))
+    except (TypeError, json.JSONDecodeError):
+        return {}
+    return data if isinstance(data, dict) else {}
 
 
 def store_note(

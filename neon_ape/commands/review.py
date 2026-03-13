@@ -5,7 +5,7 @@ import json
 from rich.console import Console
 
 from neon_ape.db.repository import review_overview
-from neon_ape.ui.views import build_inventory_table, build_review_findings_table, build_review_summary_panel
+from neon_ape.ui.views import build_inventory_table, build_review_findings_table, build_review_summary_panel, build_web_path_table
 
 
 def run_review(
@@ -21,5 +21,7 @@ def run_review(
         console.print_json(json.dumps({"target": target, **overview}))
         return
     console.print(build_review_summary_panel(target, overview))
+    console.print(build_web_path_table(overview["web_paths"]["katana"], "katana"))
+    console.print(build_web_path_table(overview["web_paths"]["gobuster"], "gobuster"))
     console.print(build_inventory_table(overview["inventory"]))
     console.print(build_review_findings_table(overview["reviews"]))

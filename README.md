@@ -12,6 +12,10 @@ Neon Ape is a local-only Python terminal dashboard for lab-safe penetration test
 
 This project does not automate brute force, exploitation, credential attacks, or post-exploitation activity.
 
+## Why NeonApe?
+
+NeonApe is built for operators who want speed, local control, and a workflow that actually feels good to use. It stays local-only, ships with no telemetry, keeps data on your machine, and defaults to safer recon and review flows instead of reckless automation. The goal is simple: give you a sharp, memorable terminal dashboard with Evangelion energy, fast chained workflows, encrypted notes, and enough structure to move from recon to review without turning your shell into a mess.
+
 ## Quick Start
 
 Install from GitHub:
@@ -256,6 +260,50 @@ neonape --workflow light_recon --target example.com
 neonape --workflow deep_recon --target example.com
 neonape --workflow js_web_chain --target example.com
 ```
+
+## Example Walkthroughs
+
+### Recon a bug-bounty target in 5 minutes
+
+Use this for a fast first pass on an authorized public target:
+
+```bash
+neonape --workflow light_recon --target example.com
+neonape --workflow pd_web_chain --target example.com
+neonape review --target example.com
+neonape db domain --target example.com
+```
+
+What this does:
+
+- discovers subdomains with passive sources
+- probes live HTTP targets
+- runs nuclei against reachable web assets
+- summarizes saved scans, findings, inventory, and review matches
+
+If the target is JavaScript-heavy, switch the second command to:
+
+```bash
+neonape --workflow js_web_chain --target example.com
+```
+
+### Using encrypted notes during a red team engagement
+
+Use notes to track observations locally without leaving plaintext findings around:
+
+```bash
+neonape notes add --title "External login panel" --body "Observed admin login at /portal with MFA prompt." --target app.example.com
+neonape notes list
+neonape notes view --id 1
+neonape db domain --target app.example.com
+```
+
+A practical pattern:
+
+- run recon or review commands first
+- save operator notes with a short title and target label
+- pull everything back together with `neonape db domain --target ...`
+- keep notes encrypted at rest in the local SQLite store
 
 Manage encrypted notes:
 

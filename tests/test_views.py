@@ -1,11 +1,14 @@
 from pathlib import Path
 
 from neon_ape.ui.views import (
+    build_domain_summary_panel,
     build_naabu_table,
     build_nuclei_table,
     build_recent_findings_table,
+    build_review_summary_panel,
     build_scans_table,
     build_status_table,
+    build_web_path_table,
 )
 
 
@@ -42,3 +45,38 @@ def test_build_naabu_table_renders_port_numbers() -> None:
         [{"host": "www.example.com", "key": "443", "value": "tcp"}]
     )
     assert table.columns[1]._cells == ["443"]
+
+
+def test_build_katana_web_path_table_renders_paths() -> None:
+    table = build_web_path_table(
+        [{"host": "https://example.com/app.js", "value": "crawl"}],
+        "katana",
+    )
+    assert table.columns[0]._cells == ["https://example.com/app.js"]
+    assert table.columns[1]._cells == ["crawl"]
+
+
+def test_build_gobuster_web_path_table_renders_status() -> None:
+    table = build_web_path_table(
+        [{"host": "/admin", "value": "301"}],
+        "gobuster",
+    )
+    assert table.columns[0]._cells == ["/admin"]
+    assert table.columns[1]._cells == ["301"]
+
+
+def test_domain_and_review_summary_panels_include_web_path_counts() -> None:
+    overview = {
+        "scans": [],
+        "findings": [],
+        "notes": [],
+        "inventory": [],
+        "reviews": [],
+        "web_paths": {"katana": [{"host": "a", "value": "crawl"}], "gobuster": [{"host": "/admin", "value": "301"}]},
+    }
+    domain_panel = build_domain_summary_panel("example.com", overview)
+    review_panel = build_review_summary_panel("example.com", overview)
+    assert "Katana Paths" in str(domain_panel.renderable)
+    assert "Gobuster Paths" in str(domain_panel.renderable)
+    assert "Katana Paths" in str(review_panel.renderable)
+    assert "Gobuster Paths" in str(review_panel.renderable)
