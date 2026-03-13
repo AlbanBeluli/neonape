@@ -62,4 +62,4 @@ def execute_nmap(command: list[str], target: str) -> ToolResult:
         output_index = command.index("-oX") + 1
         if output_index < len(command):
             raw_output_path = command[output_index]
-    return run_command("nmap", target, command, raw_output_path=raw_output_path)
+    return run_command("nmap", target, command, timeout=300, raw_output_path=raw_output_path)

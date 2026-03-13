@@ -18,6 +18,7 @@ Main usage:
 
 - `neonape`
 - `neonape --init-only`
+- `neonape --show-targets`
 - `neonape --show-checklist --init-only`
 - `neonape --checklist-step <step> --target <target>`
 
@@ -43,6 +44,12 @@ Maintenance:
 - `neonape uninstall`
 - `neonape uninstall --purge-data --yes`
 
+Transfer:
+
+- `neonape export scans --output scans.json`
+- `neonape export findings --format csv --output findings.csv`
+- `neonape import scans --input scans.json`
+
 ## Data Locations
 
 - Runtime directory: `~/.neon_ape/`
@@ -50,12 +57,13 @@ Maintenance:
 - Log file: `~/.neon_ape/neon_ape.log`
 - Scan artifacts: `~/.neon_ape/scans/`
 - Launcher path: `~/.local/bin/neonape`
+- Config file: `~/.config/neonape/config.toml`
 
 ## Known Limitations
 
 - The app is still command-driven, not a fully interactive terminal menu workflow
 - `neonape` with no arguments shows the dashboard shell but does not enter an interactive prompt
-- DB views render the full dashboard header first, not a minimal data-only output mode
+- DB views still render the full dashboard header first, not a minimal data-only output mode
 - Checklist status is persisted after step execution, but the checklist table shown at startup may reflect pre-run state in the same invocation
 - Full encrypted SQLite is not implemented; sensitive field encryption scaffolding exists, but DB-wide SQLCipher support is not wired in
 - Custom script execution is only scaffolded and not yet a full user-facing feature

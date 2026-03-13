@@ -65,7 +65,12 @@ def build_projectdiscovery_command(tool_name: str, target: str, output_path: Pat
 
 
 def execute_projectdiscovery(command: list[str], tool_name: str, target: str, output_path: Path) -> ToolResult:
-    return run_command(tool_name, target, command, raw_output_path=str(output_path))
+    cleanup_path = output_path.with_suffix(".input.txt") if tool_name == "dnsx" else None
+    try:
+        return run_command(tool_name, target, command, timeout=_timeout_for(tool_name), raw_output_path=str(output_path))
+    finally:
+        if cleanup_path is not None:
+            cleanup_path.unlink(missing_ok=True)
 
 
 def parse_projectdiscovery_output(tool_name: str, output_path: Path) -> list[dict[str, str]]:
@@ -148,3 +153,15 @@ def _parse_payload(tool_name: str, payload: dict[str, object]) -> list[dict[str,
         return []
 
     return [{"type": "raw_output", "value": json.dumps(payload, sort_keys=True)}]
+
+
+def _timeout_for(tool_name: str) -> int:
+    if tool_name == "subfinder":
+        return 180
+    if tool_name == "httpx":
+        return 120
+    if tool_name == "naabu":
+        return 180
+    if tool_name == "dnsx":
+        return 120
+    return 300

@@ -213,27 +213,115 @@ def list_tables(connection: sqlite3.Connection) -> list[str]:
     return [str(row["name"]) for row in rows]
 
 
-def recent_scans(connection: sqlite3.Connection, limit: int = 20) -> list[dict[str, str | int | None]]:
-    rows = connection.execute(
-        """
+def recent_scans(
+    connection: sqlite3.Connection,
+    limit: int = 20,
+    tool_name: str | None = None,
+) -> list[dict[str, str | int | None]]:
+    query = """
         SELECT id, tool_name, target, status, raw_output_path, finished_at
         FROM scan_runs
-        ORDER BY id DESC
-        LIMIT ?
-        """,
-        (limit,),
-    ).fetchall()
+    """
+    params: list[str | int] = []
+    if tool_name:
+        query += " WHERE tool_name = ?"
+        params.append(tool_name)
+    query += " ORDER BY id DESC LIMIT ?"
+    params.append(limit)
+    rows = connection.execute(query, tuple(params)).fetchall()
     return [dict(row) for row in rows]
 
 
-def recent_findings(connection: sqlite3.Connection, limit: int = 50) -> list[dict[str, str | int | None]]:
-    rows = connection.execute(
-        """
+def recent_findings(
+    connection: sqlite3.Connection,
+    limit: int = 50,
+    finding_type: str | None = None,
+) -> list[dict[str, str | int | None]]:
+    query = """
         SELECT id, scan_run_id, finding_type, key, value
         FROM scan_findings
-        ORDER BY id DESC
-        LIMIT ?
-        """,
-        (limit,),
-    ).fetchall()
+    """
+    params: list[str | int] = []
+    if finding_type:
+        query += " WHERE finding_type = ?"
+        params.append(finding_type)
+    query += " ORDER BY id DESC LIMIT ?"
+    params.append(limit)
+    rows = connection.execute(query, tuple(params)).fetchall()
     return [dict(row) for row in rows]
+
+
+def export_scan_bundle(
+    connection: sqlite3.Connection,
+    limit: int = 100,
+    tool_name: str | None = None,
+) -> list[dict[str, object]]:
+    query = """
+        SELECT id, tool_name, target, command_line, status, raw_output_path, finished_at
+        FROM scan_runs
+    """
+    params: list[str | int] = []
+    if tool_name:
+        query += " WHERE tool_name = ?"
+        params.append(tool_name)
+    query += " ORDER BY id DESC LIMIT ?"
+    params.append(limit)
+    scans = [dict(row) for row in connection.execute(query, tuple(params)).fetchall()]
+
+    bundles: list[dict[str, object]] = []
+    for scan in scans:
+        findings = connection.execute(
+            """
+            SELECT finding_type, key, value, metadata_json
+            FROM scan_findings
+            WHERE scan_run_id = ?
+            ORDER BY id ASC
+            """,
+            (scan["id"],),
+        ).fetchall()
+        bundles.append(
+            {
+                "scan": scan,
+                "findings": [dict(row) for row in findings],
+            }
+        )
+    return bundles
+
+
+def import_scan_bundle(connection: sqlite3.Connection, bundles: list[dict[str, object]]) -> int:
+    imported = 0
+    for bundle in bundles:
+        scan = bundle.get("scan", {})
+        findings = bundle.get("findings", [])
+        cursor = connection.execute(
+            """
+            INSERT INTO scan_runs (tool_name, target, command_line, status, raw_output_path, finished_at)
+            VALUES (?, ?, ?, ?, ?, ?)
+            """,
+            (
+                scan.get("tool_name", "imported"),
+                scan.get("target", ""),
+                scan.get("command_line", ""),
+                scan.get("status", "success"),
+                scan.get("raw_output_path", ""),
+                scan.get("finished_at"),
+            ),
+        )
+        scan_run_id = cursor.lastrowid
+        for finding in findings:
+            connection.execute(
+                """
+                INSERT INTO scan_findings (scan_run_id, finding_type, key, value, metadata_json)
+                VALUES (?, ?, ?, ?, ?)
+                """,
+                (
+                    scan_run_id,
+                    finding.get("finding_type", "imported"),
+                    finding.get("key", ""),
+                    finding.get("value", ""),
+                    finding.get("metadata_json", "{}"),
+                ),
+            )
+        imported += 1
+    connection.commit()
+    return imported

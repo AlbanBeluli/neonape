@@ -178,9 +178,20 @@ neonape --show-checklist --init-only
 Runtime paths:
 
 - Neon Ape now stores its local database, logs, and scan artifacts under `~/.neon_ape/`
+- Optional config file: `~/.config/neonape/config.toml`
 - Packaged assets such as the schema and checklist seed are resolved relative to the installed project, not your current working directory
 - That means `neonape` can be run from any directory
 - The installer keeps the app itself under `~/.local/share/neonape/`
+
+Example config:
+
+```toml
+[neonape]
+privacy_mode = true
+data_dir = "~/.neon_ape"
+install_root = "~/.local/share/neonape"
+bin_dir = "~/.local/bin"
+```
 
 Maintenance:
 
@@ -226,6 +237,14 @@ neonape db scans
 neonape db findings
 ```
 
+Export and import:
+
+```bash
+neonape export scans --output scans.json
+neonape export findings --format csv --output findings.csv
+neonape import scans --input scans.json
+```
+
 Output handling:
 
 - Each run stores a row in `scan_runs`
@@ -234,6 +253,7 @@ Output handling:
 - Raw XML or JSONL artifacts are kept under `.neon_ape/scans/`
 - Runtime data is stored under `~/.neon_ape/`
 - Checklist steps with attached actions are marked `complete` on success and `in_progress` on failure
+- Landing mode masks recent targets by default; use `neonape --show-targets` to reveal them
 
 ## Implementation Roadmap
 
