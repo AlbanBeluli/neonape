@@ -1,0 +1,65 @@
+from __future__ import annotations
+
+from pathlib import Path
+from xml.etree import ElementTree as ET
+
+from neon_ape.tools.base import ToolResult, run_command
+
+
+SAFE_PROFILES = {
+    "host_discovery": ["nmap", "-sn"],
+    "service_scan": ["nmap", "-sV"],
+    "aggressive": ["nmap", "-A", "-T4"],
+}
+
+
+def build_nmap_command(target: str, profile: str, output_xml: Path) -> list[str]:
+    if profile not in SAFE_PROFILES:
+        raise ValueError(f"Unsupported nmap profile: {profile}")
+    return [*SAFE_PROFILES[profile], "-oX", str(output_xml), target]
+
+
+def parse_nmap_xml(xml_path: Path) -> list[dict[str, str]]:
+    if not xml_path.exists():
+        return []
+    root = ET.parse(xml_path).getroot()
+    findings: list[dict[str, str]] = []
+    for host in root.findall("host"):
+        address = host.find("address")
+        host_value = address.attrib.get("addr", "") if address is not None else ""
+        if host_value:
+            findings.append({"type": "host", "host": host_value, "value": host_value})
+        ports = host.find("ports")
+        if ports is None:
+            continue
+        for port in ports.findall("port"):
+            service = port.find("service")
+            state = port.find("state")
+            service_name = service.attrib.get("name", "") if service is not None else ""
+            port_id = port.attrib.get("portid", "")
+            findings.append(
+                {
+                    "type": "port",
+                    "host": host_value,
+                    "key": port_id,
+                    "value": f"{service_name or 'unknown'} ({state.attrib.get('state', 'unknown') if state is not None else 'unknown'})",
+                }
+            )
+    return findings
+
+
+def render_command_preview(command: list[str]) -> str:
+    return " ".join(command)
+
+
+def empty_result(target: str, command: list[str]) -> ToolResult:
+    return ToolResult(tool_name="nmap", target=target, command=command)
+
+
+def execute_nmap(command: list[str], target: str) -> ToolResult:
+    raw_output_path = ""
+    if "-oX" in command:
+        output_index = command.index("-oX") + 1
+        if output_index < len(command):
+            raw_output_path = command[output_index]
+    return run_command("nmap", target, command, raw_output_path=raw_output_path)

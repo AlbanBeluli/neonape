@@ -1,0 +1,30 @@
+[build-system]
+requires = ["setuptools>=69", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "neonape"
+version = "0.1.0"
+description = "Local-only terminal dashboard for lab-safe reconnaissance workflows"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+  "rich>=13.9,<14.0",
+  "cryptography>=44.0,<45.0",
+  "dnspython>=2.7,<3.0",
+  "python-whois>=0.9,<1.0",
+  "pydantic>=2.10,<3.0",
+  "lxml>=5.3,<6.0",
+]
+
+[project.scripts]
+neonape = "neon_ape.cli:main"
+
+[tool.setuptools]
+include-package-data = true
+
+[tool.setuptools.packages.find]
+include = ["neon_ape*"]
+
+[tool.setuptools.package-data]
+neon_ape = ["db/*.sql", "checklists/*.json"]

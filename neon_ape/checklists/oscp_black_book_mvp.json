@@ -1,0 +1,70 @@
+{
+  "slug": "oscp-black-book-mvp",
+  "title": "OSCP Black Book Inspired Workflow",
+  "description": "Local, checklist-driven workflow centered on passive recon, active scanning, and documentation.",
+  "items": [
+    {
+      "step_order": 1,
+      "section_name": "Angel Enumeration",
+      "title": "Validate target scope",
+      "guide_text": "Confirm the target hostname, IP, or CIDR is within your authorized lab or engagement scope before running any active tools.",
+      "example_command": "Document scope and validate target input before execution.",
+      "action_tool": null,
+      "action_profile": null
+    },
+    {
+      "step_order": 2,
+      "section_name": "Angel Enumeration",
+      "title": "Discover subdomains",
+      "guide_text": "Use passive sources to identify visible subdomains before deeper validation.",
+      "example_command": "subfinder -d example.com -silent -oJ",
+      "action_tool": "subfinder",
+      "action_profile": "passive_subdomains"
+    },
+    {
+      "step_order": 3,
+      "section_name": "Angel Enumeration",
+      "title": "Resolve DNS records",
+      "guide_text": "Resolve A, AAAA, CNAME, NS, MX, and TXT records for the scoped domain and store them as normalized findings.",
+      "example_command": "dnsx -silent -json -re -a -aaaa -cname -ns -mx -txt -list targets.txt",
+      "action_tool": "dnsx",
+      "action_profile": "dns_records"
+    },
+    {
+      "step_order": 4,
+      "section_name": "Eva Unit Scanner",
+      "title": "Run host discovery",
+      "guide_text": "Identify responsive hosts first and capture findings as structured data.",
+      "example_command": "nmap -sn 192.168.1.0/24",
+      "action_tool": "nmap",
+      "action_profile": "host_discovery"
+    },
+    {
+      "step_order": 5,
+      "section_name": "Eva Unit Scanner",
+      "title": "Probe live web services",
+      "guide_text": "Check reachable HTTP(S) services, titles, status codes, IPs, and technology fingerprints for scoped targets.",
+      "example_command": "httpx -silent -json -status-code -title -tech-detect -web-server -ip -target https://example.com",
+      "action_tool": "httpx",
+      "action_profile": "web_probe"
+    },
+    {
+      "step_order": 6,
+      "section_name": "Eva Unit Scanner",
+      "title": "Run service enumeration",
+      "guide_text": "Enumerate open services and versions on in-scope hosts and store parsed output.",
+      "example_command": "nmap -sV 192.168.1.10",
+      "action_tool": "nmap",
+      "action_profile": "service_scan"
+    },
+    {
+      "step_order": 7,
+      "section_name": "MAGI Checklist",
+      "title": "Record findings and next actions",
+      "guide_text": "Capture notes, exposed services, and follow-up validation tasks in encrypted local storage.",
+      "example_command": "Add note to findings journal",
+      "action_tool": null,
+      "action_profile": null
+    }
+  ]
+}
