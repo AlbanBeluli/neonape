@@ -216,6 +216,10 @@ def _prompt_db_view(
         return
     limit = 20
     domain_target = None
+    if view == "domain":
+        domain_target = _ask_text(console, "Domain or target")
+        if domain_target is None:
+            return
     if view in {"scans", "findings", "domain"}:
         limit_value = _ask_text(console, "Limit", default="20")
         if limit_value is None:
@@ -225,10 +229,6 @@ def _prompt_db_view(
         except ValueError:
             console.print("[bold red]Limit must be a number.[/bold red]")
             _pause(console)
-            return
-    if view == "domain":
-        domain_target = _ask_text(console, "Domain or target")
-        if domain_target is None:
             return
     run_db_view(
         console,
