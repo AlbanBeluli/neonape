@@ -89,7 +89,7 @@ def checklist_summary(connection: sqlite3.Connection) -> dict[str, str | int]:
         FROM checklists c
         LEFT JOIN checklist_items ci ON ci.checklist_id = c.id
         GROUP BY c.id
-        ORDER BY c.id
+        ORDER BY c.id DESC
         LIMIT 1
         """
     ).fetchone()
@@ -99,7 +99,13 @@ def checklist_summary(connection: sqlite3.Connection) -> dict[str, str | int]:
 
 
 def checklist_item_count(connection: sqlite3.Connection) -> int:
-    row = connection.execute("SELECT COUNT(*) AS count FROM checklist_items").fetchone()
+    row = connection.execute(
+        """
+        SELECT COUNT(*) AS count
+        FROM checklist_items
+        WHERE checklist_id = (SELECT id FROM checklists ORDER BY id DESC LIMIT 1)
+        """
+    ).fetchone()
     return int(row["count"]) if row is not None else 0
 
 
@@ -116,6 +122,7 @@ def list_checklist_items(connection: sqlite3.Connection) -> list[dict[str, str |
             action_profile,
             status
         FROM checklist_items
+        WHERE checklist_id = (SELECT id FROM checklists ORDER BY id DESC LIMIT 1)
         ORDER BY step_order
         """
     ).fetchall()
@@ -135,7 +142,8 @@ def get_checklist_item(connection: sqlite3.Connection, step_order: int) -> dict[
             action_profile,
             status
         FROM checklist_items
-        WHERE step_order = ?
+        WHERE checklist_id = (SELECT id FROM checklists ORDER BY id DESC LIMIT 1)
+          AND step_order = ?
         """,
         (step_order,),
     ).fetchone()
@@ -152,7 +160,8 @@ def mark_checklist_item_status(
         f"""
         UPDATE checklist_items
         SET status = ?, completed_at = {completed_at}
-        WHERE step_order = ?
+        WHERE checklist_id = (SELECT id FROM checklists ORDER BY id DESC LIMIT 1)
+          AND step_order = ?
         """,
         (status, step_order),
     )

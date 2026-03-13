@@ -8,13 +8,23 @@ from neon_ape.tools.base import ToolResult, run_command
 from neon_ape.services.validation import validate_domain, validate_target, validate_url_or_target
 
 
-SUPPORTED_TOOLS = ("subfinder", "httpx", "naabu", "dnsx", "nuclei")
+SUPPORTED_TOOLS = ("subfinder", "httpx", "naabu", "dnsx", "nuclei", "assetfinder", "amass", "katana")
 
 
 def build_projectdiscovery_command(tool_name: str, target: str, output_path: Path) -> tuple[str, list[str]]:
     if tool_name == "subfinder":
         validated = validate_domain(target)
         command = ["subfinder", "-oJ", "-d", validated, "-o", str(output_path)]
+        return validated, command
+
+    if tool_name == "assetfinder":
+        validated = validate_domain(target)
+        command = ["assetfinder", "--subs-only", validated]
+        return validated, command
+
+    if tool_name == "amass":
+        validated = validate_domain(target)
+        command = ["amass", "enum", "-passive", "-d", validated, "-json", str(output_path)]
         return validated, command
 
     if tool_name == "httpx":
@@ -53,6 +63,11 @@ def build_projectdiscovery_command(tool_name: str, target: str, output_path: Pat
         command = _nuclei_base_command() + ["-u", validated, "-o", str(output_path)]
         return validated, command
 
+    if tool_name == "katana":
+        validated = validate_url_or_target(target)
+        command = ["katana", "-jsonl", "-u", validated, "-jc", "-o", str(output_path)]
+        return validated, command
+
     raise ValueError(f"Unsupported ProjectDiscovery tool: {tool_name}")
 
 
@@ -61,7 +76,7 @@ def build_projectdiscovery_batch_command(
     targets: list[str],
     output_path: Path,
 ) -> tuple[list[str], list[str], Path]:
-    if tool_name not in {"httpx", "naabu", "nuclei"}:
+    if tool_name not in {"httpx", "naabu", "nuclei", "katana"}:
         raise ValueError(f"Unsupported batch ProjectDiscovery tool: {tool_name}")
 
     if not targets:
@@ -79,14 +94,21 @@ def build_projectdiscovery_batch_command(
         command = _naabu_base_command() + ["-list", str(input_path), "-o", str(output_path)]
         return validated_targets, command, input_path
 
-    command = _nuclei_base_command() + ["-l", str(input_path), "-o", str(output_path)]
+    if tool_name == "nuclei":
+        command = _nuclei_base_command() + ["-l", str(input_path), "-o", str(output_path)]
+        return validated_targets, command, input_path
+
+    command = ["katana", "-jsonl", "-list", str(input_path), "-jc", "-o", str(output_path)]
     return validated_targets, command, input_path
 
 
 def execute_projectdiscovery(command: list[str], tool_name: str, target: str, output_path: Path) -> ToolResult:
-    cleanup_path = output_path.with_suffix(".input.txt") if tool_name in {"dnsx", "httpx", "naabu", "nuclei"} else None
+    cleanup_path = output_path.with_suffix(".input.txt") if tool_name in {"dnsx", "httpx", "naabu", "nuclei", "katana"} else None
     try:
-        return run_command(tool_name, target, command, timeout=_timeout_for(tool_name), raw_output_path=str(output_path))
+        result = run_command(tool_name, target, command, timeout=_timeout_for(tool_name), raw_output_path=str(output_path))
+        if tool_name == "assetfinder" and result.stdout:
+            output_path.write_text(result.stdout, encoding="utf-8")
+        return result
     finally:
         if cleanup_path is not None:
             cleanup_path.unlink(missing_ok=True)
@@ -103,6 +125,9 @@ def parse_projectdiscovery_output(tool_name: str, output_path: Path) -> list[dic
             if not line:
                 continue
             try:
+                if tool_name == "assetfinder":
+                    findings.append({"type": "subdomain", "host": line, "key": line, "value": "discovered"})
+                    continue
                 payload = json.loads(line)
             except json.JSONDecodeError:
                 findings.append({"type": "raw_output", "value": line})
@@ -117,6 +142,12 @@ def _parse_payload(tool_name: str, payload: dict[str, object]) -> list[dict[str,
         sources = payload.get("sources", [])
         value = ",".join(str(item) for item in sources) if isinstance(sources, list) else str(sources)
         return [{"type": "subdomain", "host": host, "key": host, "value": value or "discovered"}]
+
+    if tool_name == "amass":
+        host = str(payload.get("name", payload.get("host", "")))
+        addresses = payload.get("addresses", [])
+        ips = ",".join(str(item.get("ip", "")) for item in addresses if isinstance(item, dict) and item.get("ip"))
+        return [{"type": "subdomain", "host": host, "key": host, "value": ips or "discovered"}] if host else []
 
     if tool_name == "httpx":
         url = str(payload.get("url", payload.get("input", "")))
@@ -179,6 +210,11 @@ def _parse_payload(tool_name: str, payload: dict[str, object]) -> list[dict[str,
             return [{"type": "dns_record", "host": host, "key": "RAW", "value": str(response)}]
         return []
 
+    if tool_name == "katana":
+        url = str(payload.get("request", {}).get("endpoint", payload.get("url", payload.get("endpoint", ""))))
+        source = str(payload.get("source", "crawl"))
+        return [{"type": "web_path", "host": url, "key": url, "value": source or "discovered"}] if url else []
+
     if tool_name == "nuclei":
         template_id = str(payload.get("template-id", ""))
         info = payload.get("info", {})
@@ -216,6 +252,12 @@ def _timeout_for(tool_name: str) -> int:
         return 120
     if tool_name == "nuclei":
         return 300
+    if tool_name == "assetfinder":
+        return 120
+    if tool_name == "amass":
+        return 240
+    if tool_name == "katana":
+        return 180
     return 300
 
 
@@ -240,7 +282,7 @@ def _nuclei_base_command() -> list[str]:
 
 
 def _validate_batch_target(tool_name: str, target: str) -> str:
-    if tool_name in {"httpx", "nuclei"}:
+    if tool_name in {"httpx", "nuclei", "katana"}:
         return validate_url_or_target(target)
     return validate_target(target)
 

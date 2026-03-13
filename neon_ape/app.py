@@ -15,7 +15,7 @@ from neon_ape.db.repository import (
 )
 from neon_ape.commands.db import run_db_view
 from neon_ape.commands.interactive import run_interactive_shell
-from neon_ape.commands.tools import run_chained_recon_workflow, run_checklist_step, run_nmap, run_projectdiscovery_tool
+from neon_ape.commands.tools import run_chained_recon_workflow, run_checklist_step, run_gobuster, run_nmap, run_projectdiscovery_tool
 from neon_ape.commands.transfer import run_export, run_import
 from neon_ape.commands.uninstall import run_uninstall
 from neon_ape.services.logging_utils import configure_logger
@@ -23,7 +23,7 @@ from neon_ape.services.storage import connect
 from neon_ape.ui.ascii import EVA_BANNER
 from neon_ape.ui.layout import build_checklist_table, build_main_menu
 from neon_ape.ui.theme import APP_TITLE, section_style
-from neon_ape.ui.views import build_landing_panel, build_quickstart_table, build_scans_table, build_status_table
+from neon_ape.ui.views import build_landing_panel, build_missing_tools_panel, build_quickstart_table, build_scans_table, build_status_table, build_welcome_panel
 
 
 class NeonApeApp:
@@ -165,6 +165,7 @@ class NeonApeApp:
             self.console.print(build_checklist_table(checklist_items))
 
         if self.init_only:
+            self.console.print(build_welcome_panel())
             self.console.print(build_landing_panel(self.config.data_dir, checklist_items))
             self.console.print(build_quickstart_table())
             self.console.print(
@@ -204,7 +205,7 @@ class NeonApeApp:
 
         if self.run_nmap:
             if "nmap" not in detected_tools:
-                self.console.print("[bold red]nmap is not installed or not on PATH.[/bold red]")
+                self.console.print(build_missing_tools_panel(["nmap"]))
                 return
             run_nmap(
                 self.console,
@@ -217,7 +218,15 @@ class NeonApeApp:
 
         if self.tool:
             if self.tool not in detected_tools:
-                self.console.print(f"[bold red]{self.tool} is not installed or not on PATH.[/bold red]")
+                self.console.print(build_missing_tools_panel([self.tool]))
+                return
+            if self.tool == "gobuster":
+                run_gobuster(
+                    self.console,
+                    connection,
+                    target=self.target,
+                    scan_dir=self.config.scan_dir,
+                )
                 return
             run_projectdiscovery_tool(
                 self.console,
@@ -228,11 +237,17 @@ class NeonApeApp:
             )
             return
 
-        if self.workflow == "pd_chain":
-            required_tools = {"subfinder", "httpx", "naabu"}
-            missing_tools = sorted(tool for tool in required_tools if tool not in detected_tools)
+        if self.workflow:
+            workflow_tools = {
+                "pd_chain": {"subfinder", "httpx", "naabu"},
+                "pd_web_chain": {"subfinder", "httpx", "nuclei"},
+                "light_recon": {"assetfinder", "subfinder", "httpx"},
+                "deep_recon": {"assetfinder", "subfinder", "amass", "dnsx", "httpx", "naabu", "nuclei"},
+                "js_web_chain": {"subfinder", "httpx", "katana", "nuclei"},
+            }
+            missing_tools = sorted(tool for tool in workflow_tools.get(self.workflow, set()) if tool not in detected_tools)
             if missing_tools:
-                self.console.print(f"[bold red]Missing workflow tools:[/bold red] {', '.join(missing_tools)}")
+                self.console.print(build_missing_tools_panel(missing_tools))
                 return
             run_chained_recon_workflow(
                 self.console,
@@ -242,17 +257,3 @@ class NeonApeApp:
                 workflow_name=self.workflow,
             )
             return
-
-        if self.workflow == "pd_web_chain":
-            required_tools = {"subfinder", "httpx", "nuclei"}
-            missing_tools = sorted(tool for tool in required_tools if tool not in detected_tools)
-            if missing_tools:
-                self.console.print(f"[bold red]Missing workflow tools:[/bold red] {', '.join(missing_tools)}")
-                return
-            run_chained_recon_workflow(
-                self.console,
-                connection,
-                target=self.target,
-                scan_dir=self.config.scan_dir,
-                workflow_name=self.workflow,
-            )

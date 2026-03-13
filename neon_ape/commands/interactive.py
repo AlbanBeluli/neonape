@@ -13,13 +13,14 @@ from neon_ape.commands.review import run_review
 from neon_ape.commands.tools import (
     run_chained_recon_workflow,
     run_checklist_step,
+    run_gobuster,
     run_nmap,
     run_projectdiscovery_tool,
 )
 from neon_ape.commands.transfer import run_export
 from neon_ape.db.repository import checklist_summary, list_checklist_items, list_note_headers, recent_scans
 from neon_ape.ui.layout import build_checklist_table, build_interactive_actions, build_main_menu
-from neon_ape.ui.views import build_landing_panel, build_quickstart_table, build_scans_table, build_status_table
+from neon_ape.ui.views import build_landing_panel, build_missing_tools_panel, build_quickstart_table, build_scans_table, build_status_table, build_welcome_panel
 from neon_ape.ui.theme import section_style
 
 
@@ -99,8 +100,11 @@ def _render_home(
     show_targets: bool,
     last_summary: str | None,
 ) -> None:
+    scans = recent_scans(connection, limit=5)
     console.print(build_main_menu())
     console.print(build_status_table(checklist, config.db_path, detected_tools))
+    if not scans:
+        console.print(build_welcome_panel())
     console.print(build_landing_panel(config.data_dir, checklist_items))
     if last_summary:
         console.print(Panel.fit(last_summary, title="Last Action", style=section_style("accent")))
@@ -108,7 +112,7 @@ def _render_home(
     console.print(build_interactive_actions())
     console.print(
         build_scans_table(
-            recent_scans(connection, limit=5),
+            scans,
             mask_targets=config.privacy_mode and not show_targets,
         )
     )
@@ -160,7 +164,7 @@ def _prompt_single_tool(
 ) -> str:
     tool_name = Prompt.ask(
         "[bold cyan]Tool[/bold cyan]",
-        choices=["nmap", "subfinder", "dnsx", "httpx", "naabu", "nuclei", "b"],
+        choices=["nmap", "subfinder", "assetfinder", "amass", "dnsx", "httpx", "naabu", "nuclei", "katana", "gobuster", "b"],
         default="nmap",
     )
     if tool_name == "b":
@@ -180,9 +184,13 @@ def _prompt_single_tool(
         _pause(console)
         return f"Ran nmap:{profile} against {target}. Status: {'success' if success else 'failed'}."
     if tool_name not in detected_tools:
-        console.print(f"[bold red]{tool_name} is not installed or not on PATH.[/bold red]")
+        console.print(build_missing_tools_panel([tool_name]))
         _pause(console)
         return f"{tool_name} is not installed."
+    if tool_name == "gobuster":
+        success = run_gobuster(console, connection, target=target, scan_dir=scan_dir)
+        _pause(console)
+        return f"Ran gobuster against {target}. Status: {'success' if success else 'failed'}."
     success = run_projectdiscovery_tool(console, connection, tool_name=tool_name, target=target, scan_dir=scan_dir)
     _pause(console)
     return f"Ran {tool_name} against {target}. Status: {'success' if success else 'failed'}."
@@ -191,7 +199,7 @@ def _prompt_single_tool(
 def _prompt_chained_workflow(console: Console, connection, scan_dir: Path) -> str:
     workflow = Prompt.ask(
         "[bold cyan]Workflow[/bold cyan]",
-        choices=["pd_chain", "pd_web_chain", "b"],
+        choices=["pd_chain", "pd_web_chain", "light_recon", "deep_recon", "js_web_chain", "b"],
         default="pd_chain",
     )
     if workflow == "b":

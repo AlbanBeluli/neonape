@@ -30,6 +30,27 @@ def test_parse_nuclei_tool_flag() -> None:
     assert args.target == "https://example.com"
 
 
+def test_parse_katana_tool_flag() -> None:
+    parser = build_parser()
+    args = parser.parse_args(["--tool", "katana", "--target", "https://example.com"])
+    assert args.tool == "katana"
+    assert args.target == "https://example.com"
+
+
+def test_parse_gobuster_tool_flag() -> None:
+    parser = build_parser()
+    args = parser.parse_args(["--tool", "gobuster", "--target", "https://example.com"])
+    assert args.tool == "gobuster"
+    assert args.target == "https://example.com"
+
+
+def test_parse_assetfinder_tool_flag() -> None:
+    parser = build_parser()
+    args = parser.parse_args(["--tool", "assetfinder", "--target", "example.com"])
+    assert args.tool == "assetfinder"
+    assert args.target == "example.com"
+
+
 def test_parse_show_targets_flag() -> None:
     parser = build_parser()
     args = parser.parse_args(["--show-targets"])
@@ -85,6 +106,13 @@ def test_parse_web_workflow_flag() -> None:
     parser = build_parser()
     args = parser.parse_args(["--workflow", "pd_web_chain", "--target", "example.com"])
     assert args.workflow == "pd_web_chain"
+    assert args.target == "example.com"
+
+
+def test_parse_deep_recon_workflow_flag() -> None:
+    parser = build_parser()
+    args = parser.parse_args(["--workflow", "deep_recon", "--target", "example.com"])
+    assert args.workflow == "deep_recon"
     assert args.target == "example.com"
 
 

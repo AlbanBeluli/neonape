@@ -7,6 +7,7 @@ from neon_ape.tools.projectdiscovery import (
     parse_projectdiscovery_output,
 )
 from neon_ape.tools.base import run_command
+from neon_ape.tools.web_enum import parse_gobuster_output
 
 
 def test_parse_nmap_xml_extracts_host_and_port(tmp_path) -> None:
@@ -71,6 +72,31 @@ def test_parse_nuclei_jsonl_extracts_match_metadata(tmp_path) -> None:
     assert findings[0]["severity"] == "medium"
 
 
+def test_parse_assetfinder_output_extracts_subdomains(tmp_path) -> None:
+    output = tmp_path / "assetfinder.txt"
+    output.write_text("api.example.com\nwww.example.com\n", encoding="utf-8")
+    findings = parse_projectdiscovery_output("assetfinder", output)
+    assert findings[0]["type"] == "subdomain"
+    assert findings[0]["host"] == "api.example.com"
+
+
+def test_parse_amass_json_extracts_subdomains(tmp_path) -> None:
+    output = tmp_path / "amass.jsonl"
+    output.write_text('{"name":"api.example.com","addresses":[{"ip":"1.2.3.4"}]}\n', encoding="utf-8")
+    findings = parse_projectdiscovery_output("amass", output)
+    assert findings[0]["type"] == "subdomain"
+    assert findings[0]["host"] == "api.example.com"
+    assert findings[0]["value"] == "1.2.3.4"
+
+
+def test_parse_katana_json_extracts_paths(tmp_path) -> None:
+    output = tmp_path / "katana.jsonl"
+    output.write_text('{"request":{"endpoint":"https://example.com/app.js"},"source":"crawl"}\n', encoding="utf-8")
+    findings = parse_projectdiscovery_output("katana", output)
+    assert findings[0]["type"] == "web_path"
+    assert findings[0]["host"] == "https://example.com/app.js"
+
+
 def test_build_httpx_batch_command_creates_input_file(tmp_path) -> None:
     output = tmp_path / "httpx.jsonl"
     targets, command, input_path = build_projectdiscovery_batch_command("httpx", ["app.example.com", "api.example.com"], output)
@@ -78,6 +104,23 @@ def test_build_httpx_batch_command_creates_input_file(tmp_path) -> None:
     assert "-l" in command
     assert input_path.exists()
     assert input_path.read_text(encoding="utf-8") == "app.example.com\napi.example.com\n"
+
+
+def test_build_katana_batch_command_creates_input_file(tmp_path) -> None:
+    output = tmp_path / "katana.jsonl"
+    targets, command, input_path = build_projectdiscovery_batch_command("katana", ["https://app.example.com"], output)
+    assert targets == ["https://app.example.com"]
+    assert "-list" in command
+    assert input_path.exists()
+
+
+def test_parse_gobuster_output_extracts_paths(tmp_path) -> None:
+    output = tmp_path / "gobuster.txt"
+    output.write_text("/admin           Status: 301\n/assets          Status: 200\n", encoding="utf-8")
+    findings = parse_gobuster_output(output)
+    assert findings[0]["type"] == "web_path"
+    assert findings[0]["host"] == "/admin"
+    assert findings[0]["value"] == "301"
 
 
 def test_render_command_preview_masks_home_paths(monkeypatch) -> None:

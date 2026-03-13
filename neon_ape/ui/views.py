@@ -29,6 +29,42 @@ def build_status_table(checklist: dict[str, str | int], db_path: Path, detected_
     return table
 
 
+def build_welcome_panel() -> Panel:
+    body = (
+        "[bold]Synchronization start.[/bold]\n"
+        "Neon Ape guides recon, inventory, and local review flows.\n"
+        "[italic]\"The hedgehog's dilemma... scanning ports.\"[/italic]\n\n"
+        "[bold]Quick demo:[/bold]\n"
+        "1. Discover subdomains\n"
+        "2. Probe live web services\n"
+        "3. Review nuclei matches and service inventory"
+    )
+    return Panel.fit(body, title="Terminal Entry Plug", style=section_style("accent"))
+
+
+def build_missing_tools_panel(tools: list[str]) -> Panel:
+    hints = {
+        "nmap": "Install nmap and verify `nmap --version` works.",
+        "subfinder": "Install ProjectDiscovery subfinder and place it on PATH.",
+        "assetfinder": "Install assetfinder and place it on PATH.",
+        "amass": "Install amass and verify passive enumeration is available.",
+        "httpx": "Install ProjectDiscovery httpx and place it on PATH.",
+        "naabu": "Install ProjectDiscovery naabu and place it on PATH.",
+        "dnsx": "Install ProjectDiscovery dnsx and place it on PATH.",
+        "nuclei": "Install ProjectDiscovery nuclei and update templates separately if needed.",
+        "katana": "Install ProjectDiscovery katana and place it on PATH.",
+        "gobuster": "Install gobuster and a common wordlist such as SecLists or dirb.",
+    }
+    unique_tools = list(dict.fromkeys(tools))
+    hint_lines = "\n".join(f"- {hints.get(tool, f'Install {tool} and ensure it is on PATH.')}" for tool in unique_tools)
+    body = (
+        f"[bold red]Missing tools:[/bold red] {', '.join(unique_tools)}\n"
+        f"{hint_lines}\n"
+        "Neon Ape will stay local-only and keep the workflow ready once they are available."
+    )
+    return Panel.fit(body, title="AT Field Warning", style="bold red")
+
+
 def build_findings_table(findings: list[dict[str, str]]) -> Table:
     table = Table(title="Scan Findings", expand=False)
     table.add_column("Type", style="bold")
@@ -55,6 +91,8 @@ def build_tool_output_table(tool_name: str, findings: list[dict[str, str]]) -> T
         return build_dnsx_table(findings)
     if tool_name == "nuclei":
         return build_nuclei_table(findings)
+    if tool_name in {"katana", "gobuster"}:
+        return build_web_path_table(findings, tool_name)
     return build_findings_table(findings)
 
 
@@ -127,7 +165,7 @@ def build_nuclei_table(findings: list[dict[str, str]]) -> Table:
     for finding in findings:
         table.add_row(
             finding.get("host", "-"),
-            finding.get("severity", "-"),
+            _severity_text(finding.get("severity", "-")),
             finding.get("template_id", finding.get("key", "-")),
             finding.get("name", "-"),
         )
@@ -166,10 +204,12 @@ def build_quickstart_table() -> Table:
     table.add_column("Command")
     table.add_row("Open interactive shell", "neonape")
     table.add_row("Show checklist", "neonape --show-checklist --init-only")
-    table.add_row("Run next recon step", "neonape --checklist-step 2 --target example.com")
-    table.add_row("Run chained recon", "neonape --workflow pd_chain --target example.com")
+    table.add_row("Run light recon", "neonape --workflow light_recon --target example.com")
+    table.add_row("Run web review chain", "neonape --workflow pd_web_chain --target example.com")
+    table.add_row("Run JS-heavy chain", "neonape --workflow js_web_chain --target example.com")
     table.add_row("Inspect scans", "neonape db scans")
     table.add_row("Inspect findings", "neonape db findings")
+    table.add_row("Review a target", "neonape review --target example.com")
     table.add_row("Show targets", "neonape --show-targets")
     table.add_row("Uninstall", "neonape uninstall")
     return table
@@ -284,7 +324,7 @@ def build_review_findings_table(rows: list[dict[str, str | int | None]]) -> Tabl
     for row in rows:
         table.add_row(
             str(row.get("host", "-")),
-            str(row.get("severity", "-")),
+            _severity_text(str(row.get("severity", "-"))),
             str(row.get("source_tool", "-")),
             str(row.get("finding_key", "-")),
             str(row.get("title", "-")),
@@ -307,9 +347,37 @@ def build_review_summary_panel(target: str, overview: dict[str, list[dict[str, s
     return Panel.fit(body, title="Smart Review", style=section_style("orange"))
 
 
+def build_web_path_table(findings: list[dict[str, str]], tool_name: str) -> Table:
+    table = Table(title=f"{tool_name.title()} Findings", expand=False)
+    table.add_column("Path", style="bold")
+    table.add_column("Value")
+    if not findings:
+        table.add_row("-", "-")
+        return table
+    for finding in findings:
+        table.add_row(
+            finding.get("host", finding.get("key", "-")),
+            finding.get("value", "-"),
+        )
+    return table
+
+
 def _mask_target(value: str) -> str:
     if value in {"", "-"}:
         return value
     if len(value) <= 6:
         return "***"
     return f"{value[:2]}***{value[-2:]}"
+
+
+def _severity_text(value: str) -> str:
+    normalized = str(value).lower()
+    if normalized == "critical":
+        return "[bold red]critical[/bold red]"
+    if normalized == "high":
+        return "[red]high[/red]"
+    if normalized == "medium":
+        return "[yellow]medium[/yellow]"
+    if normalized == "low":
+        return "[green]low[/green]"
+    return str(value)

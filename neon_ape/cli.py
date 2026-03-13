@@ -15,6 +15,9 @@ def build_parser() -> argparse.ArgumentParser:
             "  neonape --show-checklist --init-only\n"
             "  neonape --workflow pd_chain --target example.com\n"
             "  neonape --workflow pd_web_chain --target example.com\n"
+            "  neonape --workflow light_recon --target example.com\n"
+            "  neonape --workflow deep_recon --target example.com\n"
+            "  neonape --workflow js_web_chain --target example.com\n"
             "  neonape --checklist-step 2 --target example.com\n"
             "  neonape --checklist-step 3 --target example.com\n"
             "  neonape --checklist-step 4 --target 192.168.1.10\n"
@@ -27,6 +30,10 @@ def build_parser() -> argparse.ArgumentParser:
             "  neonape --tool httpx --target https://example.com\n"
             "  neonape --tool naabu --target 192.168.1.10\n\n"
             "  neonape --tool nuclei --target https://example.com\n\n"
+            "  neonape --tool assetfinder --target example.com\n"
+            "  neonape --tool amass --target example.com\n"
+            "  neonape --tool katana --target https://example.com\n"
+            "  neonape --tool gobuster --target https://example.com\n\n"
             "Database views:\n"
             "  neonape db tables\n"
             "  neonape db checklist\n"
@@ -57,9 +64,16 @@ def build_parser() -> argparse.ArgumentParser:
             "  httpx      HTTP probing for URLs or hosts\n"
             "  naabu      top-100 TCP port probing for hosts or IPs\n"
             "  nuclei     HTTP template checks with JSONL findings\n\n"
+            "  assetfinder passive subdomain discovery for domains\n"
+            "  amass      passive amass subdomain enumeration\n"
+            "  katana     JSONL web crawl for reachable HTTP targets\n"
+            "  gobuster   directory brute forcing with safe defaults\n\n"
             "Chained workflows:\n"
             "  pd_chain      subfinder -> httpx -> naabu\n"
-            "  pd_web_chain  subfinder -> httpx -> nuclei"
+            "  pd_web_chain  subfinder -> httpx -> nuclei\n"
+            "  light_recon   assetfinder + subfinder -> httpx\n"
+            "  deep_recon    assetfinder + subfinder + amass -> dnsx -> httpx -> naabu -> nuclei\n"
+            "  js_web_chain  subfinder -> httpx -> katana -> nuclei"
         ),
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
@@ -143,13 +157,13 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--tool",
-        choices=("subfinder", "httpx", "naabu", "dnsx", "nuclei"),
-        help="Execute a supported ProjectDiscovery tool with safe defaults.",
+        choices=("subfinder", "assetfinder", "amass", "httpx", "naabu", "dnsx", "nuclei", "katana", "gobuster"),
+        help="Execute a supported recon or web-enumeration tool with safe defaults.",
     )
     parser.add_argument(
         "--workflow",
-        choices=("pd_chain", "pd_web_chain"),
-        help="Execute a chained workflow. `pd_chain` runs subfinder -> httpx -> naabu. `pd_web_chain` runs subfinder -> httpx -> nuclei.",
+        choices=("pd_chain", "pd_web_chain", "light_recon", "deep_recon", "js_web_chain"),
+        help="Execute a chained workflow. Supports pd_chain, pd_web_chain, light_recon, deep_recon, and js_web_chain.",
     )
     parser.add_argument(
         "--checklist-step",

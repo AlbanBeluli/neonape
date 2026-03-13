@@ -34,7 +34,7 @@ def test_build_nuclei_table_renders_match_metadata() -> None:
     table = build_nuclei_table(
         [{"host": "https://example.com", "severity": "high", "template_id": "panel", "name": "Exposed Panel"}]
     )
-    assert table.columns[1]._cells == ["high"]
+    assert table.columns[1]._cells == ["[red]high[/red]"]
 
 
 def test_build_naabu_table_renders_port_numbers() -> None:

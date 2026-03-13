@@ -16,8 +16,9 @@ from neon_ape.tools.projectdiscovery import (
     execute_projectdiscovery,
     parse_projectdiscovery_output,
 )
+from neon_ape.tools.web_enum import build_gobuster_command, execute_gobuster, parse_gobuster_output
 from neon_ape.ui.theme import section_style
-from neon_ape.ui.views import build_tool_output_table
+from neon_ape.ui.views import build_missing_tools_panel, build_tool_output_table
 
 
 def run_checklist_step(
@@ -51,7 +52,7 @@ def run_checklist_step(
         return profile, None
 
     if action_tool not in detected_tools:
-        console.print(f"[bold red]{action_tool} is not installed or not on PATH.[/bold red]")
+        console.print(build_missing_tools_panel([str(action_tool)]))
         return profile, None
 
     console.print(
@@ -67,6 +68,17 @@ def run_checklist_step(
 
     step_profile = str(action_profile or profile)
     if action_tool == "workflow":
+        workflow_tools = {
+            "pd_chain": {"subfinder", "httpx", "naabu"},
+            "pd_web_chain": {"subfinder", "httpx", "nuclei"},
+            "light_recon": {"assetfinder", "subfinder", "httpx"},
+            "deep_recon": {"assetfinder", "subfinder", "amass", "dnsx", "httpx", "naabu", "nuclei"},
+            "js_web_chain": {"subfinder", "httpx", "katana", "nuclei"},
+        }
+        missing_tools = sorted(tool for tool in workflow_tools.get(step_profile, set()) if tool not in detected_tools)
+        if missing_tools:
+            console.print(build_missing_tools_panel(missing_tools))
+            return profile, action_tool
         success = run_chained_recon_workflow(
             console,
             connection,
@@ -76,10 +88,16 @@ def run_checklist_step(
         )
         mark_step_outcome(console, connection, checklist_step, success)
         return profile, action_tool
+
     if action_tool == "nmap":
         success = run_nmap(console, connection, target=target, profile=step_profile, scan_dir=scan_dir)
         mark_step_outcome(console, connection, checklist_step, success)
         return step_profile, action_tool
+
+    if action_tool == "gobuster":
+        success = run_gobuster(console, connection, target=target, scan_dir=scan_dir)
+        mark_step_outcome(console, connection, checklist_step, success)
+        return profile, action_tool
 
     success = run_projectdiscovery_tool(console, connection, tool_name=str(action_tool), target=target, scan_dir=scan_dir)
     mark_step_outcome(console, connection, checklist_step, success)
@@ -94,7 +112,11 @@ def run_nmap(
     profile: str,
     scan_dir: Path,
 ) -> bool:
-    validated_target = validate_target(target)
+    try:
+        validated_target = validate_target(target)
+    except ValueError as exc:
+        console.print(f"[bold red]{exc}[/bold red]")
+        return False
     output_xml = scan_dir / f"{validated_target.replace('/', '_')}_{profile}.xml"
     command = build_nmap_command(validated_target, profile, output_xml)
 
@@ -126,7 +148,11 @@ def run_projectdiscovery_tool(
     scan_dir: Path,
 ) -> bool:
     output_path = scan_dir / f"{tool_name}_{target.replace('/', '_')}.jsonl"
-    validated_target, command = build_projectdiscovery_command(tool_name, target, output_path)
+    try:
+        validated_target, command = build_projectdiscovery_command(tool_name, target, output_path)
+    except ValueError as exc:
+        console.print(f"[bold red]{exc}[/bold red]")
+        return False
 
     console.print(
         Panel.fit(
@@ -147,6 +173,39 @@ def run_projectdiscovery_tool(
     return result.exit_code == 0
 
 
+def run_gobuster(
+    console: Console,
+    connection,
+    *,
+    target: str,
+    scan_dir: Path,
+) -> bool:
+    output_path = scan_dir / f"gobuster_{_safe_name(target)}.txt"
+    try:
+        validated_target, command = build_gobuster_command(target, output_path)
+    except ValueError as exc:
+        console.print(f"[bold red]{exc}[/bold red]")
+        return False
+
+    console.print(
+        Panel.fit(
+            f"[bold]Tool:[/bold] gobuster\n[bold]Target:[/bold] {validated_target}\n"
+            f"[bold]Command:[/bold] {render_command_preview(command)}",
+            title="Eva Unit Scanner",
+            style=section_style("green"),
+        )
+    )
+
+    result = execute_gobuster(command, validated_target, output_path)
+    findings = parse_gobuster_output(output_path)
+    record_scan(connection, result, findings)
+    console.print(build_tool_output_table("gobuster", findings))
+    console.print(f"[bold green]gobuster exit code:[/bold green] {result.exit_code}")
+    if result.exit_code != 0 and result.stderr:
+        console.print(f"[bold red]{result.stderr}[/bold red]")
+    return result.exit_code == 0
+
+
 def run_projectdiscovery_batch_tool(
     console: Console,
     connection,
@@ -159,7 +218,11 @@ def run_projectdiscovery_batch_tool(
 ) -> tuple[bool, list[dict[str, str]]]:
     normalized_targets = _unique_targets(targets)
     output_path = scan_dir / f"{tool_name}_{_safe_name(workflow_name or normalized_targets[0])}.jsonl"
-    validated_targets, command, input_path = build_projectdiscovery_batch_command(tool_name, normalized_targets, output_path)
+    try:
+        validated_targets, command, input_path = build_projectdiscovery_batch_command(tool_name, normalized_targets, output_path)
+    except ValueError as exc:
+        console.print(f"[bold red]{exc}[/bold red]")
+        return False, []
 
     console.print(
         Panel.fit(
@@ -195,11 +258,17 @@ def run_chained_recon_workflow(
     scan_dir: Path,
     workflow_name: str = "pd_chain",
 ) -> bool:
-    if workflow_name not in {"pd_chain", "pd_web_chain"}:
+    if workflow_name not in {"pd_chain", "pd_web_chain", "light_recon", "deep_recon", "js_web_chain"}:
         console.print(f"[bold red]Unsupported workflow:[/bold red] {workflow_name}")
         return False
 
-    workflow_label = "subfinder -> httpx -> naabu" if workflow_name == "pd_chain" else "subfinder -> httpx -> nuclei"
+    workflow_label = {
+        "pd_chain": "subfinder -> httpx -> naabu",
+        "pd_web_chain": "subfinder -> httpx -> nuclei",
+        "light_recon": "assetfinder + subfinder -> httpx",
+        "deep_recon": "assetfinder + subfinder + amass -> dnsx -> httpx -> naabu -> nuclei",
+        "js_web_chain": "subfinder -> httpx -> katana -> nuclei",
+    }[workflow_name]
     console.print(
         Panel.fit(
             f"[bold]Workflow:[/bold] {workflow_label}\n[bold]Seed target:[/bold] {target}",
@@ -208,26 +277,17 @@ def run_chained_recon_workflow(
         )
     )
 
-    subfinder_success = run_projectdiscovery_tool(
-        console,
-        connection,
-        tool_name="subfinder",
-        target=target,
-        scan_dir=scan_dir,
-    )
-    if not subfinder_success:
+    subdomains = _discover_subdomains(console, connection, target=target, scan_dir=scan_dir, workflow_name=workflow_name)
+    if workflow_name in {"pd_chain", "pd_web_chain", "js_web_chain"} and not subdomains:
         return False
-
-    subfinder_output = scan_dir / f"subfinder_{target.replace('/', '_')}.jsonl"
-    subfinder_findings = parse_projectdiscovery_output("subfinder", subfinder_output)
-    subdomains = _unique_targets(
-        finding.get("host", "")
-        for finding in subfinder_findings
-        if finding.get("host")
-    )
     if not subdomains:
         console.print("[bold yellow]No subdomains found. Falling back to the provided target for HTTP probing.[/bold yellow]")
         subdomains = [target]
+
+    if workflow_name == "deep_recon":
+        dns_success = run_projectdiscovery_tool(console, connection, tool_name="dnsx", target=target, scan_dir=scan_dir)
+        if not dns_success:
+            return False
 
     httpx_success, httpx_findings = run_projectdiscovery_batch_tool(
         console,
@@ -255,7 +315,7 @@ def run_chained_recon_workflow(
         console.print("[bold yellow]No live HTTP targets found for the next workflow stage.[/bold yellow]")
         return True
 
-    if workflow_name == "pd_chain":
+    if workflow_name in {"pd_chain", "deep_recon"}:
         naabu_success, _ = run_projectdiscovery_batch_tool(
             console,
             connection,
@@ -265,7 +325,44 @@ def run_chained_recon_workflow(
             workflow_name=f"{target}_workflow_naabu",
             history_target=f"{workflow_name}:{target}:naabu",
         )
-        return naabu_success
+        if not naabu_success or workflow_name == "pd_chain":
+            return naabu_success
+        nuclei_success, _ = run_projectdiscovery_batch_tool(
+            console,
+            connection,
+            tool_name="nuclei",
+            targets=live_http_targets,
+            scan_dir=scan_dir,
+            workflow_name=f"{target}_workflow_nuclei",
+            history_target=f"{workflow_name}:{target}:nuclei",
+        )
+        return nuclei_success
+
+    if workflow_name == "js_web_chain":
+        katana_success, katana_findings = run_projectdiscovery_batch_tool(
+            console,
+            connection,
+            tool_name="katana",
+            targets=live_http_targets,
+            scan_dir=scan_dir,
+            workflow_name=f"{target}_workflow_katana",
+            history_target=f"{workflow_name}:{target}:katana",
+        )
+        if not katana_success:
+            return False
+        katana_targets = _unique_targets(finding.get("host", "") for finding in katana_findings if finding.get("host"))
+        if not katana_targets:
+            katana_targets = live_http_targets
+        nuclei_success, _ = run_projectdiscovery_batch_tool(
+            console,
+            connection,
+            tool_name="nuclei",
+            targets=katana_targets,
+            scan_dir=scan_dir,
+            workflow_name=f"{target}_workflow_nuclei",
+            history_target=f"{workflow_name}:{target}:nuclei",
+        )
+        return nuclei_success
 
     nuclei_success, _ = run_projectdiscovery_batch_tool(
         console,
@@ -315,3 +412,32 @@ def _default_batch_history_target(tool_name: str, workflow_name: str | None, val
     if len(validated_targets) == 1:
         return validated_targets[0]
     return f"batch:{tool_name}:{len(validated_targets)}_targets"
+
+
+def _discover_subdomains(
+    console: Console,
+    connection,
+    *,
+    target: str,
+    scan_dir: Path,
+    workflow_name: str,
+) -> list[str]:
+    tools = ["subfinder"]
+    if workflow_name in {"light_recon", "deep_recon"}:
+        tools.insert(0, "assetfinder")
+    if workflow_name == "deep_recon":
+        tools.append("amass")
+
+    collected: list[str] = []
+    for tool_name in tools:
+        success = run_projectdiscovery_tool(console, connection, tool_name=tool_name, target=target, scan_dir=scan_dir)
+        if not success and tool_name == "subfinder":
+            return []
+        output_path = scan_dir / f"{tool_name}_{target.replace('/', '_')}.jsonl"
+        findings = parse_projectdiscovery_output(tool_name, output_path)
+        collected.extend(
+            finding.get("host", "")
+            for finding in findings
+            if finding.get("host")
+        )
+    return _unique_targets(collected)

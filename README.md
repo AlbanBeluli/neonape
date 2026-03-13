@@ -6,8 +6,8 @@ Neon Ape is a local-only Python terminal dashboard for lab-safe penetration test
 
 - Local-only workflow with no web server or exposed listener
 - Interactive `neonape` shell plus direct CLI subcommands
-- Safe wrappers for `nmap`, `subfinder`, `dnsx`, `httpx`, `naabu`, and `nuclei`
-- Chained recon flows for web triage and service discovery
+- Safe wrappers for `nmap`, `subfinder`, `assetfinder`, `amass`, `dnsx`, `httpx`, `naabu`, `katana`, `gobuster`, and `nuclei`
+- Chained recon flows for light recon, deep recon, web triage, and JS-heavy targets
 - SQLite-backed checklist, scan history, findings, and encrypted notes
 
 This project does not automate brute force, exploitation, credential attacks, or post-exploitation activity.
@@ -27,6 +27,8 @@ Useful first commands:
 neonape
 neonape --workflow pd_chain --target example.com
 neonape --workflow pd_web_chain --target example.com
+neonape --workflow light_recon --target example.com
+neonape --workflow js_web_chain --target example.com
 neonape --tool nuclei --target https://example.com
 neonape db scans
 neonape notes list
@@ -45,8 +47,10 @@ neonape notes list
 - Rich-based terminal UI with an interactive startup shell
 - Checklist engine backed by SQLite
 - `nmap` integration with XML parsing
-- ProjectDiscovery wrappers for `subfinder`, `httpx`, `naabu`, `dnsx`, and `nuclei`
-- Chained workflows: `pd_chain` and `pd_web_chain`
+- ProjectDiscovery wrappers for `subfinder`, `assetfinder`, `amass`, `httpx`, `naabu`, `dnsx`, `katana`, and `nuclei`
+- Safe web enumeration wrapper for `gobuster`
+- Chained workflows: `pd_chain`, `pd_web_chain`, `light_recon`, `deep_recon`, and `js_web_chain`
+- Welcome panel, missing-tool guidance, and severity-colored review tables
 - Encrypted notes and local scan history
 - Import/export, uninstall, and DB inspection commands
 
@@ -114,19 +118,16 @@ Supported host tools:
 
 - `nmap`
 - `subfinder`
+- `assetfinder`
+- `amass`
 - `httpx`
 - `naabu`
 - `nuclei`
 - `dnsx`
+- `katana`
+- `gobuster`
 - `whois`
 - `dig`
-
-Additional tools Neon Ape can detect for future expansion:
-
-- `katana`
-- `assetfinder`
-- `amass`
-- `gobuster`
 - `msfconsole`
 
 ## Security Model
@@ -236,9 +237,13 @@ Run a single wrapper:
 
 ```bash
 neonape --tool subfinder --target example.com
+neonape --tool assetfinder --target example.com
+neonape --tool amass --target example.com
 neonape --tool httpx --target https://example.com
 neonape --tool naabu --target 192.168.1.10
 neonape --tool dnsx --target example.com
+neonape --tool katana --target https://example.com
+neonape --tool gobuster --target https://example.com
 neonape --tool nuclei --target https://example.com
 ```
 
@@ -247,6 +252,9 @@ Run a chained workflow:
 ```bash
 neonape --workflow pd_chain --target example.com
 neonape --workflow pd_web_chain --target example.com
+neonape --workflow light_recon --target example.com
+neonape --workflow deep_recon --target example.com
+neonape --workflow js_web_chain --target example.com
 ```
 
 Manage encrypted notes:
