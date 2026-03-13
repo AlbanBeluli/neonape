@@ -4,15 +4,43 @@ Neon Ape is a local-only Python terminal dashboard for lab-safe penetration test
 
 For a compact current-state reference, see [MEMORY.md](MEMORY.md).
 
-The initial roadmap in this repository is intentionally scoped toward:
+## At a Glance
+
+- Local-only terminal workflow for scoped recon and service review
+- Interactive `neonape` shell plus direct CLI commands
+- Built-in wrappers for `nmap`, `subfinder`, `dnsx`, `httpx`, `naabu`, and `nuclei`
+- Chained recon flow: `subfinder -> httpx -> naabu`
+- SQLite-backed checklist, scan history, findings, and notes storage
+
+This project does not automate brute force, exploitation, credential attacks, or post-exploitation activity.
+
+## Quick Start
+
+Install from GitHub:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/AlbanBeluli/neonape/main/install.sh | bash -s -- --repo https://github.com/AlbanBeluli/neonape.git
+neonape
+```
+
+Useful first commands:
+
+```bash
+neonape
+neonape --workflow pd_chain --target example.com
+neonape --tool nuclei --target https://example.com
+neonape db scans
+```
+
+## Scope
+
+The current release is intentionally scoped toward:
 
 - Passive reconnaissance
 - Active scanning in authorized environments
 - Findings tracking
 - Notes and checklist management
 - Safe local automation
-
-This project does not automate brute force, exploitation, credential attacks, or post-exploitation activity.
 
 ## Goals
 
@@ -144,7 +172,7 @@ Tables planned for the MVP:
 - `tool_history`
 - `secrets`
 
-## Quick Install
+## Install
 
 Local checkout:
 
