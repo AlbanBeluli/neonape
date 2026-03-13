@@ -11,7 +11,8 @@ from neon_ape.db.repository import (
     seed_checklist_from_file,
 )
 from neon_ape.commands.db import run_db_view
-from neon_ape.commands.tools import run_checklist_step, run_nmap, run_projectdiscovery_tool
+from neon_ape.commands.interactive import run_interactive_shell
+from neon_ape.commands.tools import run_chained_recon_workflow, run_checklist_step, run_nmap, run_projectdiscovery_tool
 from neon_ape.commands.transfer import run_export, run_import
 from neon_ape.commands.uninstall import run_uninstall
 from neon_ape.services.logging_utils import configure_logger
@@ -50,6 +51,7 @@ class NeonApeApp:
         self.checklist_step: int | None = None
         self.show_checklist = False
         self.show_targets = False
+        self.workflow: str | None = None
 
     def run(self) -> None:
         if self.command == "uninstall":
@@ -69,10 +71,12 @@ class NeonApeApp:
         checklist = checklist_summary(connection)
         checklist_items = list_checklist_items(connection)
         detected_tools = detect_installed_tools()
+        interactive_mode = not any((self.command, self.run_nmap, self.tool, self.checklist_step, self.workflow, self.init_only))
 
         self.console.print(Panel.fit(EVA_BANNER, title=APP_TITLE, style=section_style("accent")))
-        self.console.print(build_main_menu())
-        self.console.print(build_status_table(checklist, self.config.db_path, detected_tools))
+        if not interactive_mode:
+            self.console.print(build_main_menu())
+            self.console.print(build_status_table(checklist, self.config.db_path, detected_tools))
 
         if self.command == "db":
             run_db_view(
@@ -113,7 +117,7 @@ class NeonApeApp:
         if self.show_checklist or self.checklist_step:
             self.console.print(build_checklist_table(checklist_items))
 
-        if self.init_only or (not self.run_nmap and not self.tool and not self.checklist_step):
+        if self.init_only:
             self.console.print(build_landing_panel(self.config.data_dir, checklist_items))
             self.console.print(build_quickstart_table())
             self.console.print(
@@ -121,6 +125,17 @@ class NeonApeApp:
                     recent_scans(connection, limit=5),
                     mask_targets=self.config.privacy_mode and not self.show_targets,
                 )
+            )
+            return
+
+        if interactive_mode:
+            run_interactive_shell(
+                self.console,
+                connection,
+                config=self.config,
+                detected_tools=detected_tools,
+                show_targets=self.show_targets,
+                current_profile=self.profile,
             )
             return
 
@@ -161,6 +176,20 @@ class NeonApeApp:
                 self.console,
                 connection,
                 tool_name=self.tool,
+                target=self.target,
+                scan_dir=self.config.scan_dir,
+            )
+            return
+
+        if self.workflow == "pd_chain":
+            required_tools = {"subfinder", "httpx", "naabu"}
+            missing_tools = sorted(tool for tool in required_tools if tool not in detected_tools)
+            if missing_tools:
+                self.console.print(f"[bold red]Missing workflow tools:[/bold red] {', '.join(missing_tools)}")
+                return
+            run_chained_recon_workflow(
+                self.console,
+                connection,
                 target=self.target,
                 scan_dir=self.config.scan_dir,
             )

@@ -5,7 +5,7 @@ from pathlib import Path
 
 from rich.console import Console
 
-from neon_ape.db.repository import list_tables, recent_findings, recent_scans
+from neon_ape.db.repository import list_tables, normalize_batch_history_labels, recent_findings, recent_scans
 from neon_ape.ui.layout import build_checklist_table
 from neon_ape.ui.views import build_recent_findings_table, build_scans_table, build_tables_table, display_runtime_path
 
@@ -37,6 +37,13 @@ def run_db_view(
     if db_command == "findings":
         findings = recent_findings(connection, limit=limit, finding_type=finding_type)
         _emit(console, findings, build_recent_findings_table(findings), as_json=as_json)
+        return
+    if db_command == "cleanup-history":
+        result = normalize_batch_history_labels(connection)
+        console.print(
+            "[bold green]History cleanup complete.[/bold green] "
+            f"scan_runs={result['scan_runs_updated']}, tool_history={result['tool_history_updated']}"
+        )
         return
     console.print("[bold red]Unsupported db command.[/bold red]")
 

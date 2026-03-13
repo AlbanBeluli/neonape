@@ -7,7 +7,7 @@ from neon_ape.tools.base import ToolResult, run_command
 from neon_ape.services.validation import validate_domain, validate_target, validate_url_or_target
 
 
-SUPPORTED_TOOLS = ("subfinder", "httpx", "naabu", "dnsx")
+SUPPORTED_TOOLS = ("subfinder", "httpx", "naabu", "dnsx", "nuclei")
 
 
 def build_projectdiscovery_command(tool_name: str, target: str, output_path: Path) -> tuple[str, list[str]]:
@@ -18,25 +18,12 @@ def build_projectdiscovery_command(tool_name: str, target: str, output_path: Pat
 
     if tool_name == "httpx":
         validated = validate_url_or_target(target)
-        command = [
-            "httpx",
-            "-silent",
-            "-json",
-            "-status-code",
-            "-title",
-            "-tech-detect",
-            "-web-server",
-            "-ip",
-            "-target",
-            validated,
-            "-o",
-            str(output_path),
-        ]
+        command = _httpx_base_command() + ["-target", validated, "-o", str(output_path)]
         return validated, command
 
     if tool_name == "naabu":
         validated = validate_target(target)
-        command = ["naabu", "-silent", "-json", "-top-ports", "100", "-host", validated, "-o", str(output_path)]
+        command = _naabu_base_command() + ["-host", validated, "-o", str(output_path)]
         return validated, command
 
     if tool_name == "dnsx":
@@ -61,11 +48,43 @@ def build_projectdiscovery_command(tool_name: str, target: str, output_path: Pat
         ]
         return validated, command
 
+    if tool_name == "nuclei":
+        validated = validate_url_or_target(target)
+        command = _nuclei_base_command() + ["-u", validated, "-o", str(output_path)]
+        return validated, command
+
     raise ValueError(f"Unsupported ProjectDiscovery tool: {tool_name}")
 
 
+def build_projectdiscovery_batch_command(
+    tool_name: str,
+    targets: list[str],
+    output_path: Path,
+) -> tuple[list[str], list[str], Path]:
+    if tool_name not in {"httpx", "naabu", "nuclei"}:
+        raise ValueError(f"Unsupported batch ProjectDiscovery tool: {tool_name}")
+
+    if not targets:
+        raise ValueError("At least one target is required")
+
+    validated_targets = [_validate_batch_target(tool_name, target) for target in targets]
+    input_path = output_path.with_suffix(".input.txt")
+    input_path.write_text("\n".join(validated_targets) + "\n", encoding="utf-8")
+
+    if tool_name == "httpx":
+        command = _httpx_base_command() + ["-l", str(input_path), "-o", str(output_path)]
+        return validated_targets, command, input_path
+
+    if tool_name == "naabu":
+        command = _naabu_base_command() + ["-list", str(input_path), "-o", str(output_path)]
+        return validated_targets, command, input_path
+
+    command = _nuclei_base_command() + ["-l", str(input_path), "-o", str(output_path)]
+    return validated_targets, command, input_path
+
+
 def execute_projectdiscovery(command: list[str], tool_name: str, target: str, output_path: Path) -> ToolResult:
-    cleanup_path = output_path.with_suffix(".input.txt") if tool_name == "dnsx" else None
+    cleanup_path = output_path.with_suffix(".input.txt") if tool_name in {"dnsx", "httpx", "naabu", "nuclei"} else None
     try:
         return run_command(tool_name, target, command, timeout=_timeout_for(tool_name), raw_output_path=str(output_path))
     finally:
@@ -89,7 +108,7 @@ def parse_projectdiscovery_output(tool_name: str, output_path: Path) -> list[dic
                 findings.append({"type": "raw_output", "value": line})
                 continue
             findings.extend(_parse_payload(tool_name, payload))
-    return findings
+    return _deduplicate_findings(findings)
 
 
 def _parse_payload(tool_name: str, payload: dict[str, object]) -> list[dict[str, str]]:
@@ -152,6 +171,29 @@ def _parse_payload(tool_name: str, payload: dict[str, object]) -> list[dict[str,
             return [{"type": "dns_record", "host": host, "key": "RAW", "value": str(response)}]
         return []
 
+    if tool_name == "nuclei":
+        template_id = str(payload.get("template-id", ""))
+        info = payload.get("info", {})
+        name = str(info.get("name", "")) if isinstance(info, dict) else ""
+        severity = str(info.get("severity", payload.get("severity", "")))
+        matched_at = str(payload.get("matched-at", payload.get("host", "")))
+        extracted = payload.get("extracted-results", [])
+        extracted_text = ",".join(str(item) for item in extracted) if isinstance(extracted, list) else str(extracted)
+        value = " ".join(part for part in (severity, name, extracted_text) if part).strip()
+        return [
+            {
+                "type": "nuclei_finding",
+                "host": matched_at,
+                "key": template_id or matched_at,
+                "value": value or "template match",
+                "template_id": template_id,
+                "name": name,
+                "severity": severity,
+                "matcher_name": str(payload.get("matcher-name", "")),
+                "curl_command": str(payload.get("curl-command", "")),
+            }
+        ]
+
     return [{"type": "raw_output", "value": json.dumps(payload, sort_keys=True)}]
 
 
@@ -164,4 +206,45 @@ def _timeout_for(tool_name: str) -> int:
         return 180
     if tool_name == "dnsx":
         return 120
+    if tool_name == "nuclei":
+        return 300
     return 300
+
+
+def _httpx_base_command() -> list[str]:
+    return [
+        "httpx",
+        "-silent",
+        "-json",
+        "-status-code",
+        "-title",
+        "-tech-detect",
+        "-web-server",
+        "-ip",
+    ]
+
+
+def _naabu_base_command() -> list[str]:
+    return ["naabu", "-silent", "-json", "-top-ports", "100"]
+
+
+def _nuclei_base_command() -> list[str]:
+    return ["nuclei", "-silent", "-jsonl", "-severity", "info,low,medium,high,critical"]
+
+
+def _validate_batch_target(tool_name: str, target: str) -> str:
+    if tool_name in {"httpx", "nuclei"}:
+        return validate_url_or_target(target)
+    return validate_target(target)
+
+
+def _deduplicate_findings(findings: list[dict[str, str]]) -> list[dict[str, str]]:
+    seen: set[tuple[tuple[str, str], ...]] = set()
+    unique: list[dict[str, str]] = []
+    for finding in findings:
+        marker = tuple(sorted((str(key), str(value)) for key, value in finding.items()))
+        if marker in seen:
+            continue
+        seen.add(marker)
+        unique.append(finding)
+    return unique

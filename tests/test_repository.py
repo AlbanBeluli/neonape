@@ -9,6 +9,7 @@ from neon_ape.db.repository import (
     list_checklist_items,
     list_tables,
     mark_checklist_item_status,
+    normalize_batch_history_labels,
     recent_findings,
     recent_scans,
     record_scan,
@@ -113,3 +114,44 @@ def test_list_tables_returns_expected_schema_tables() -> None:
     tables = list_tables(connection)
     assert "checklists" in tables
     assert "scan_runs" in tables
+
+
+def test_normalize_batch_history_labels_rewrites_old_chained_rows() -> None:
+    root = Path(__file__).resolve().parents[1]
+    connection = _connection()
+    initialize_database(connection, root / "neon_ape" / "db" / "schema.sql")
+
+    connection.execute(
+        """
+        INSERT INTO scan_runs (tool_name, target, command_line, status, raw_output_path, finished_at)
+        VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+        """,
+        (
+            "httpx",
+            "ops.stoic.ee,www.stoic.ee",
+            "httpx -l ~/.neon_ape/scans/httpx_stoic.ee_workflow_httpx.input.txt -o ~/.neon_ape/scans/httpx_stoic.ee_workflow_httpx.jsonl",
+            "success",
+            str(root / "httpx_stoic.ee_workflow_httpx.jsonl"),
+        ),
+    )
+    connection.execute(
+        """
+        INSERT INTO tool_history (tool_name, target, arguments_json, exit_code)
+        VALUES (?, ?, ?, ?)
+        """,
+        (
+            "naabu",
+            "ops.stoic.ee,www.stoic.ee",
+            '["naabu","-list","/tmp/naabu_stoic.ee_workflow_naabu.input.txt","-o","/tmp/naabu_stoic.ee_workflow_naabu.jsonl"]',
+            0,
+        ),
+    )
+    connection.commit()
+
+    result = normalize_batch_history_labels(connection)
+
+    updated_scan = connection.execute("SELECT target FROM scan_runs").fetchone()
+    updated_history = connection.execute("SELECT target FROM tool_history").fetchone()
+    assert result == {"scan_runs_updated": 1, "tool_history_updated": 1}
+    assert updated_scan["target"] == "pd_chain:stoic.ee:httpx"
+    assert updated_history["target"] == "pd_chain:stoic.ee:naabu"

@@ -23,6 +23,13 @@ def test_parse_tool_command_flags() -> None:
     assert args.target == "https://example.com"
 
 
+def test_parse_nuclei_tool_flag() -> None:
+    parser = build_parser()
+    args = parser.parse_args(["--tool", "nuclei", "--target", "https://example.com"])
+    assert args.tool == "nuclei"
+    assert args.target == "https://example.com"
+
+
 def test_parse_show_targets_flag() -> None:
     parser = build_parser()
     args = parser.parse_args(["--show-targets"])
@@ -47,3 +54,10 @@ def test_parse_export_command() -> None:
     assert args.output == "scans.json"
     assert args.export_format == "json"
     assert args.limit == 10
+
+
+def test_parse_workflow_flag() -> None:
+    parser = build_parser()
+    args = parser.parse_args(["--workflow", "pd_chain", "--target", "example.com"])
+    assert args.workflow == "pd_chain"
+    assert args.target == "example.com"

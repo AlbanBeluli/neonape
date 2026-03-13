@@ -30,7 +30,9 @@ The first implementation milestone focuses on:
 - Main menu and themed sections
 - Checklist engine backed by SQLite
 - Nmap integration with XML parsing
-- ProjectDiscovery wrappers for `subfinder`, `httpx`, `naabu`, and `dnsx`
+- Interactive terminal workflow with menu-driven actions
+- ProjectDiscovery wrappers for `subfinder`, `httpx`, `naabu`, `dnsx`, and `nuclei`
+- Chained recon workflow: `subfinder -> httpx -> naabu`
 - Passive recon helpers for WHOIS and DNS
 - Encrypted notes and API secrets
 - Local audit logging
@@ -210,8 +212,8 @@ neonape --init-only
 
 Default startup:
 
-- `neonape` now opens a useful landing view with checklist progress, next steps, quick-start commands, and recent scans
-- it does not run any external tools until you choose a command or checklist step
+- `neonape` now opens an interactive local shell with checklist progress, next steps, recent scans, and menu-driven actions
+- it does not run any external tools until you choose an action
 
 Run the safe `nmap` workflow:
 
@@ -226,6 +228,13 @@ neonape --tool subfinder --target example.com
 neonape --tool httpx --target https://example.com
 neonape --tool naabu --target 192.168.1.10
 neonape --tool dnsx --target example.com
+neonape --tool nuclei --target https://example.com
+```
+
+Run the chained recon workflow:
+
+```bash
+neonape --workflow pd_chain --target example.com
 ```
 
 Inspect stored database information:
@@ -235,6 +244,7 @@ neonape db tables
 neonape db checklist
 neonape db scans
 neonape db findings
+neonape db cleanup-history
 ```
 
 Export and import:
@@ -254,6 +264,7 @@ Output handling:
 - Runtime data is stored under `~/.neon_ape/`
 - Checklist steps with attached actions are marked `complete` on success and `in_progress` on failure
 - Landing mode masks recent targets by default; use `neonape --show-targets` to reveal them
+- `neonape db cleanup-history` rewrites older chained `httpx` and `naabu` history rows to the newer stable workflow labels
 
 ## Implementation Roadmap
 

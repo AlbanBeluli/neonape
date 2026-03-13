@@ -13,6 +13,7 @@ def build_parser() -> argparse.ArgumentParser:
             "Examples:\n"
             "  neonape\n"
             "  neonape --show-checklist --init-only\n"
+            "  neonape --workflow pd_chain --target example.com\n"
             "  neonape --checklist-step 2 --target example.com\n"
             "  neonape --checklist-step 3 --target example.com\n"
             "  neonape --checklist-step 4 --target 192.168.1.10\n"
@@ -24,11 +25,13 @@ def build_parser() -> argparse.ArgumentParser:
             "  neonape --tool dnsx --target example.com\n"
             "  neonape --tool httpx --target https://example.com\n"
             "  neonape --tool naabu --target 192.168.1.10\n\n"
+            "  neonape --tool nuclei --target https://example.com\n\n"
             "Database views:\n"
             "  neonape db tables\n"
             "  neonape db checklist\n"
             "  neonape db scans\n"
-            "  neonape db findings\n\n"
+            "  neonape db findings\n"
+            "  neonape db cleanup-history\n\n"
             "Maintenance:\n"
             "  neonape uninstall\n"
             "  neonape uninstall --purge-data --yes\n\n"
@@ -44,7 +47,10 @@ def build_parser() -> argparse.ArgumentParser:
             "  subfinder  passive subdomain discovery for domains\n"
             "  dnsx       DNS A/AAAA/CNAME/NS/MX/TXT resolution for domains\n"
             "  httpx      HTTP probing for URLs or hosts\n"
-            "  naabu      top-100 TCP port probing for hosts or IPs"
+            "  naabu      top-100 TCP port probing for hosts or IPs\n"
+            "  nuclei     HTTP template checks with JSONL findings\n\n"
+            "Chained workflows:\n"
+            "  pd_chain   subfinder -> httpx -> naabu"
         ),
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
@@ -63,6 +69,10 @@ def build_parser() -> argparse.ArgumentParser:
     db_findings_parser.add_argument("--limit", type=int, default=50, help="Maximum number of finding rows to show.")
     db_findings_parser.add_argument("--type", dest="finding_type", help="Filter findings by finding type.")
     db_findings_parser.add_argument("--json", action="store_true", help="Emit JSON instead of a Rich table.")
+    db_subparsers.add_parser(
+        "cleanup-history",
+        help="Rewrite older chained httpx/naabu history rows to the newer stable workflow labels.",
+    )
     uninstall_parser = subparsers.add_parser("uninstall", help="Remove the installed Neon Ape command and private install.")
     uninstall_parser.add_argument("--yes", action="store_true", help="Skip the confirmation prompt.")
     uninstall_parser.add_argument(
@@ -105,8 +115,13 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--tool",
-        choices=("subfinder", "httpx", "naabu", "dnsx"),
+        choices=("subfinder", "httpx", "naabu", "dnsx", "nuclei"),
         help="Execute a supported ProjectDiscovery tool with safe defaults.",
+    )
+    parser.add_argument(
+        "--workflow",
+        choices=("pd_chain",),
+        help="Execute a chained workflow. `pd_chain` runs subfinder -> httpx -> naabu.",
     )
     parser.add_argument(
         "--checklist-step",
@@ -152,6 +167,7 @@ def main() -> int:
     app.run_nmap = args.run_nmap
     app.init_only = args.init_only
     app.tool = args.tool
+    app.workflow = args.workflow
     app.checklist_step = args.checklist_step
     app.show_checklist = args.show_checklist
     app.show_targets = args.show_targets

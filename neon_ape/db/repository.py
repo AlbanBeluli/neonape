@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+import re
 import sqlite3
 
 from neon_ape.tools.base import ToolResult
@@ -251,6 +252,55 @@ def recent_findings(
     return [dict(row) for row in rows]
 
 
+def normalize_batch_history_labels(connection: sqlite3.Connection) -> dict[str, int]:
+    scan_updates = 0
+    history_updates = 0
+
+    scan_rows = connection.execute(
+        """
+        SELECT id, tool_name, target, raw_output_path
+        FROM scan_runs
+        WHERE tool_name IN ('httpx', 'naabu')
+        """
+    ).fetchall()
+    for row in scan_rows:
+        new_target = _normalized_history_target(
+            str(row["tool_name"]),
+            str(row["target"]),
+            str(row["raw_output_path"] or ""),
+        )
+        if new_target and new_target != row["target"]:
+            connection.execute(
+                "UPDATE scan_runs SET target = ? WHERE id = ?",
+                (new_target, row["id"]),
+            )
+            scan_updates += 1
+
+    history_rows = connection.execute(
+        """
+        SELECT id, tool_name, target, arguments_json
+        FROM tool_history
+        WHERE tool_name IN ('httpx', 'naabu')
+        """
+    ).fetchall()
+    for row in history_rows:
+        artifact_hint = _extract_output_path_from_arguments(row["arguments_json"])
+        new_target = _normalized_history_target(
+            str(row["tool_name"]),
+            str(row["target"] or ""),
+            artifact_hint,
+        )
+        if new_target and new_target != row["target"]:
+            connection.execute(
+                "UPDATE tool_history SET target = ? WHERE id = ?",
+                (new_target, row["id"]),
+            )
+            history_updates += 1
+
+    connection.commit()
+    return {"scan_runs_updated": scan_updates, "tool_history_updated": history_updates}
+
+
 def export_scan_bundle(
     connection: sqlite3.Connection,
     limit: int = 100,
@@ -325,3 +375,43 @@ def import_scan_bundle(connection: sqlite3.Connection, bundles: list[dict[str, o
         imported += 1
     connection.commit()
     return imported
+
+
+def _normalized_history_target(tool_name: str, current_target: str, artifact_hint: str) -> str | None:
+    if current_target.startswith("pd_chain:") or current_target.startswith("batch:"):
+        return None
+
+    workflow_target = _workflow_history_target(tool_name, artifact_hint)
+    if workflow_target:
+        return workflow_target
+
+    targets = [item.strip() for item in current_target.split(",") if item.strip()]
+    if len(targets) > 1:
+        return f"batch:{tool_name}:{len(targets)}_targets"
+    return None
+
+
+def _workflow_history_target(tool_name: str, artifact_hint: str) -> str | None:
+    name = Path(artifact_hint).name if artifact_hint else ""
+    if not name:
+        return None
+    pattern = re.compile(rf"^{re.escape(tool_name)}_(.+)_workflow_{re.escape(tool_name)}\.(jsonl|input\.txt)$")
+    match = pattern.match(name)
+    if not match:
+        return None
+    seed = match.group(1)
+    return f"pd_chain:{seed}:{tool_name}"
+
+
+def _extract_output_path_from_arguments(arguments_json: str) -> str:
+    try:
+        arguments = json.loads(arguments_json)
+    except json.JSONDecodeError:
+        return ""
+    if not isinstance(arguments, list):
+        return ""
+    for item in arguments:
+        token = str(item)
+        if token.endswith(".jsonl") or token.endswith(".input.txt"):
+            return token
+    return ""

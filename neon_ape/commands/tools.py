@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import re
 from pathlib import Path
+from urllib.parse import urlparse
 
 from rich.console import Console
 from rich.panel import Panel
@@ -9,6 +11,7 @@ from neon_ape.db.repository import get_checklist_item, mark_checklist_item_statu
 from neon_ape.services.validation import validate_target
 from neon_ape.tools.nmap import build_nmap_command, execute_nmap, parse_nmap_xml, render_command_preview
 from neon_ape.tools.projectdiscovery import (
+    build_projectdiscovery_batch_command,
     build_projectdiscovery_command,
     execute_projectdiscovery,
     parse_projectdiscovery_output,
@@ -134,8 +137,148 @@ def run_projectdiscovery_tool(
     return result.exit_code == 0
 
 
+def run_projectdiscovery_batch_tool(
+    console: Console,
+    connection,
+    *,
+    tool_name: str,
+    targets: list[str],
+    scan_dir: Path,
+    workflow_name: str | None = None,
+    history_target: str | None = None,
+) -> tuple[bool, list[dict[str, str]]]:
+    normalized_targets = _unique_targets(targets)
+    output_path = scan_dir / f"{tool_name}_{_safe_name(workflow_name or normalized_targets[0])}.jsonl"
+    validated_targets, command, input_path = build_projectdiscovery_batch_command(tool_name, normalized_targets, output_path)
+
+    console.print(
+        Panel.fit(
+            f"[bold]Tool:[/bold] {tool_name}\n"
+            f"[bold]Targets:[/bold] {len(validated_targets)}\n"
+            f"[bold]Command:[/bold] {render_command_preview(command)}",
+            title="Angel Enumeration",
+            style=section_style("orange"),
+        )
+    )
+
+    result = execute_projectdiscovery(
+        command,
+        tool_name,
+        history_target or _default_batch_history_target(tool_name, workflow_name, validated_targets),
+        output_path,
+    )
+    findings = parse_projectdiscovery_output(tool_name, output_path)
+    record_scan(connection, result, findings)
+    console.print(build_tool_output_table(tool_name, findings))
+    console.print(f"[bold green]{tool_name} exit code:[/bold green] {result.exit_code}")
+    if result.exit_code != 0 and result.stderr:
+        console.print(f"[bold red]{result.stderr}[/bold red]")
+    input_path.unlink(missing_ok=True)
+    return result.exit_code == 0, findings
+
+
+def run_chained_recon_workflow(
+    console: Console,
+    connection,
+    *,
+    target: str,
+    scan_dir: Path,
+) -> bool:
+    console.print(
+        Panel.fit(
+            f"[bold]Workflow:[/bold] subfinder -> httpx -> naabu\n[bold]Seed target:[/bold] {target}",
+            title="MAGI Chained Recon",
+            style=section_style("accent"),
+        )
+    )
+
+    subfinder_success = run_projectdiscovery_tool(
+        console,
+        connection,
+        tool_name="subfinder",
+        target=target,
+        scan_dir=scan_dir,
+    )
+    if not subfinder_success:
+        return False
+
+    subfinder_output = scan_dir / f"subfinder_{target.replace('/', '_')}.jsonl"
+    subfinder_findings = parse_projectdiscovery_output("subfinder", subfinder_output)
+    subdomains = _unique_targets(
+        finding.get("host", "")
+        for finding in subfinder_findings
+        if finding.get("host")
+    )
+    if not subdomains:
+        console.print("[bold yellow]No subdomains found. Falling back to the provided target for HTTP probing.[/bold yellow]")
+        subdomains = [target]
+
+    httpx_success, httpx_findings = run_projectdiscovery_batch_tool(
+        console,
+        connection,
+        tool_name="httpx",
+        targets=subdomains,
+        scan_dir=scan_dir,
+        workflow_name=f"{target}_workflow_httpx",
+        history_target=f"pd_chain:{target}:httpx",
+    )
+    if not httpx_success:
+        return False
+
+    live_hosts = _unique_targets(
+        _extract_host(finding.get("host", ""))
+        for finding in httpx_findings
+        if finding.get("host")
+    )
+    if not live_hosts:
+        console.print("[bold yellow]No live HTTP targets found for naabu.[/bold yellow]")
+        return True
+
+    naabu_success, _ = run_projectdiscovery_batch_tool(
+        console,
+        connection,
+        tool_name="naabu",
+        targets=live_hosts,
+        scan_dir=scan_dir,
+        workflow_name=f"{target}_workflow_naabu",
+        history_target=f"pd_chain:{target}:naabu",
+    )
+    return naabu_success
+
+
 def mark_step_outcome(console: Console, connection, step_order: int, success: bool) -> None:
     status = "complete" if success else "in_progress"
     mark_checklist_item_status(connection, step_order, status)
     label = "completed" if success else "left in progress"
     console.print(f"[bold cyan]Checklist step {step_order} {label}.[/bold cyan]")
+
+
+def _safe_name(value: str) -> str:
+    return re.sub(r"[^A-Za-z0-9_.-]+", "_", value).strip("_") or "run"
+
+
+def _extract_host(value: str) -> str:
+    parsed = urlparse(value)
+    if parsed.scheme and parsed.netloc:
+        return parsed.hostname or parsed.netloc
+    return value
+
+
+def _unique_targets(values) -> list[str]:
+    seen: set[str] = set()
+    normalized: list[str] = []
+    for value in values:
+        item = str(value).strip()
+        if not item or item in seen:
+            continue
+        seen.add(item)
+        normalized.append(item)
+    return normalized
+
+
+def _default_batch_history_target(tool_name: str, workflow_name: str | None, validated_targets: list[str]) -> str:
+    if workflow_name:
+        return f"batch:{tool_name}:{workflow_name}"
+    if len(validated_targets) == 1:
+        return validated_targets[0]
+    return f"batch:{tool_name}:{len(validated_targets)}_targets"

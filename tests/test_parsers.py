@@ -1,7 +1,11 @@
 from pathlib import Path
 
-from neon_ape.tools.nmap import parse_nmap_xml
-from neon_ape.tools.projectdiscovery import execute_projectdiscovery, parse_projectdiscovery_output
+from neon_ape.tools.nmap import parse_nmap_xml, render_command_preview
+from neon_ape.tools.projectdiscovery import (
+    build_projectdiscovery_batch_command,
+    execute_projectdiscovery,
+    parse_projectdiscovery_output,
+)
 from neon_ape.tools.base import run_command
 
 
@@ -50,6 +54,44 @@ def test_parse_dnsx_jsonl_extracts_records(tmp_path) -> None:
     findings = parse_projectdiscovery_output("dnsx", output)
     assert any(item["record_type"] == "A" for item in findings)
     assert any(item["record_type"] == "NS" for item in findings)
+
+
+def test_parse_nuclei_jsonl_extracts_match_metadata(tmp_path) -> None:
+    output = tmp_path / "nuclei.jsonl"
+    output.write_text(
+        '{"template-id":"exposed-panel","info":{"name":"Exposed Panel","severity":"medium"},"matched-at":"https://example.com/login"}\n',
+        encoding="utf-8",
+    )
+    findings = parse_projectdiscovery_output("nuclei", output)
+    assert findings[0]["type"] == "nuclei_finding"
+    assert findings[0]["template_id"] == "exposed-panel"
+    assert findings[0]["severity"] == "medium"
+
+
+def test_build_httpx_batch_command_creates_input_file(tmp_path) -> None:
+    output = tmp_path / "httpx.jsonl"
+    targets, command, input_path = build_projectdiscovery_batch_command("httpx", ["app.example.com", "api.example.com"], output)
+    assert targets == ["app.example.com", "api.example.com"]
+    assert "-l" in command
+    assert input_path.exists()
+    assert input_path.read_text(encoding="utf-8") == "app.example.com\napi.example.com\n"
+
+
+def test_render_command_preview_masks_home_paths(monkeypatch) -> None:
+    monkeypatch.setenv("HOME", "/tmp/test-home")
+    preview = render_command_preview(["httpx", "-o", "/tmp/test-home/.neon_ape/scans/httpx.jsonl"])
+    assert "/tmp/test-home" not in preview
+    assert "~/.neon_ape/scans/httpx.jsonl" in preview
+
+
+def test_parse_projectdiscovery_output_deduplicates_exact_matches(tmp_path) -> None:
+    output = tmp_path / "subfinder.jsonl"
+    output.write_text(
+        '{"host":"api.example.com"}\n{"host":"api.example.com"}\n',
+        encoding="utf-8",
+    )
+    findings = parse_projectdiscovery_output("subfinder", output)
+    assert len(findings) == 1
 
 
 def test_run_command_handles_missing_executable() -> None:

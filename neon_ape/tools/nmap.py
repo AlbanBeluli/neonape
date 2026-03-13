@@ -49,7 +49,7 @@ def parse_nmap_xml(xml_path: Path) -> list[dict[str, str]]:
 
 
 def render_command_preview(command: list[str]) -> str:
-    return " ".join(command)
+    return " ".join(_sanitize_token(token) for token in command)
 
 
 def empty_result(target: str, command: list[str]) -> ToolResult:
@@ -63,3 +63,14 @@ def execute_nmap(command: list[str], target: str) -> ToolResult:
         if output_index < len(command):
             raw_output_path = command[output_index]
     return run_command("nmap", target, command, timeout=300, raw_output_path=raw_output_path)
+
+
+def _sanitize_token(token: str) -> str:
+    path = Path(token)
+    if path.is_absolute():
+        home = Path.home()
+        try:
+            return f"~/{path.relative_to(home)}"
+        except ValueError:
+            return path.name
+    return token

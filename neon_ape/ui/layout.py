@@ -32,3 +32,18 @@ def build_checklist_table(items: list[dict[str, str | int | None]]) -> Table:
             str(item.get("status", "pending")),
         )
     return table
+
+
+def build_interactive_actions() -> Table:
+    table = Table(title="Interactive Actions", expand=False)
+    table.add_column("Key", style="bold")
+    table.add_column("Action")
+    table.add_row("1", "Show checklist")
+    table.add_row("2", "Run checklist step")
+    table.add_row("3", "Run a single tool")
+    table.add_row("4", "Run chained recon workflow")
+    table.add_row("5", "Open DB views")
+    table.add_row("6", "Export scans or findings")
+    table.add_row("7", "Refresh screen")
+    table.add_row("q", "Exit")
+    return table

@@ -46,8 +46,12 @@ def build_findings_table(findings: list[dict[str, str]]) -> Table:
 def build_tool_output_table(tool_name: str, findings: list[dict[str, str]]) -> Table:
     if tool_name == "httpx":
         return build_httpx_table(findings)
+    if tool_name == "naabu":
+        return build_naabu_table(findings)
     if tool_name == "dnsx":
         return build_dnsx_table(findings)
+    if tool_name == "nuclei":
+        return build_nuclei_table(findings)
     return build_findings_table(findings)
 
 
@@ -91,6 +95,42 @@ def build_dnsx_table(findings: list[dict[str, str]]) -> Table:
     return table
 
 
+def build_naabu_table(findings: list[dict[str, str]]) -> Table:
+    table = Table(title="Naabu Findings", expand=False)
+    table.add_column("Host", style="bold")
+    table.add_column("Port")
+    table.add_column("Proto")
+    if not findings:
+        table.add_row("-", "-", "-")
+        return table
+    for finding in findings:
+        table.add_row(
+            finding.get("host", "-"),
+            finding.get("key", "-"),
+            finding.get("value", "-"),
+        )
+    return table
+
+
+def build_nuclei_table(findings: list[dict[str, str]]) -> Table:
+    table = Table(title="Nuclei Findings", expand=False)
+    table.add_column("Matched", style="bold")
+    table.add_column("Severity")
+    table.add_column("Template")
+    table.add_column("Name")
+    if not findings:
+        table.add_row("-", "-", "-", "-")
+        return table
+    for finding in findings:
+        table.add_row(
+            finding.get("host", "-"),
+            finding.get("severity", "-"),
+            finding.get("template_id", finding.get("key", "-")),
+            finding.get("name", "-"),
+        )
+    return table
+
+
 def build_tables_table(tables: list[str]) -> Table:
     table = Table(title="Database Tables", expand=False)
     table.add_column("Table", style="bold")
@@ -121,8 +161,10 @@ def build_quickstart_table() -> Table:
     table = Table(title="Quick Start", expand=False)
     table.add_column("Action", style="bold")
     table.add_column("Command")
+    table.add_row("Open interactive shell", "neonape")
     table.add_row("Show checklist", "neonape --show-checklist --init-only")
     table.add_row("Run next recon step", "neonape --checklist-step 2 --target example.com")
+    table.add_row("Run chained recon", "neonape --workflow pd_chain --target example.com")
     table.add_row("Inspect scans", "neonape db scans")
     table.add_row("Inspect findings", "neonape db findings")
     table.add_row("Show targets", "neonape --show-targets")
@@ -161,15 +203,15 @@ def build_recent_findings_table(findings: list[dict[str, str | int | None]]) -> 
     if not findings:
         table.add_row("-", "-", "-", "-", "-")
         return table
-        for finding in findings:
-            table.add_row(
-                str(finding.get("id", "-")),
-                str(finding.get("scan_run_id", "-")),
-                str(finding.get("finding_type", "-")),
-                str(finding.get("key", "-")),
-                str(finding.get("value", "-")),
-            )
-        return table
+    for finding in findings:
+        table.add_row(
+            str(finding.get("id", "-")),
+            str(finding.get("scan_run_id", "-")),
+            str(finding.get("finding_type", "-")),
+            str(finding.get("key", "-")),
+            str(finding.get("value", "-")),
+        )
+    return table
 
 
 def _mask_target(value: str) -> str:
