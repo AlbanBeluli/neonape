@@ -197,6 +197,11 @@ Initialize storage only:
 neonape --init-only
 ```
 
+Default startup:
+
+- `neonape` now opens a useful landing view with checklist progress, next steps, quick-start commands, and recent scans
+- it does not run any external tools until you choose a command or checklist step
+
 Run the safe `nmap` workflow:
 
 ```bash

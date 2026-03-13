@@ -76,11 +76,9 @@ class NeonApeApp:
             self.console.print(build_checklist_table(checklist_items))
 
         if self.init_only or (not self.run_nmap and not self.tool and not self.checklist_step):
-            self.console.print(
-                "[bold green]Storage initialized.[/bold green] "
-                "Use `neonape --target <host> --run-nmap` or "
-                "`neonape --tool <name> --target <host>` to execute a tool workflow."
-            )
+            self.console.print(self._build_landing_panel(checklist_items))
+            self.console.print(self._build_quickstart_table())
+            self.console.print(self._build_scans_table(recent_scans(connection, limit=5)))
             return
 
         if not self.target:
@@ -260,7 +258,7 @@ class NeonApeApp:
         table.add_column("Value")
         table.add_row("Checklist Items", str(checklist.get("item_count", 0)))
         table.add_row("Database", self._display_runtime_path(self.config.db_path))
-        table.add_row("Detected Tools", ", ".join(sorted(detected_tools)) or "None")
+        table.add_row("Detected Tools", str(len(detected_tools)))
         return table
 
     def _build_findings_table(self, findings: list[dict[str, str]]) -> Table:
@@ -332,6 +330,31 @@ class NeonApeApp:
             return table
         for name in tables:
             table.add_row(name)
+        return table
+
+    def _build_landing_panel(self, checklist_items: list[dict[str, str | int | None]]) -> Panel:
+        complete = sum(1 for item in checklist_items if item.get("status") == "complete")
+        pending_items = [item for item in checklist_items if item.get("status") != "complete"]
+        next_steps = "\n".join(
+            f"{item.get('step_order')}. {item.get('title')}"
+            for item in pending_items[:3]
+        ) or "All checklist items completed."
+        body = (
+            f"[bold green]Ready.[/bold green] Runtime data lives under [bold]{self._display_runtime_path(self.config.data_dir)}[/bold]\n"
+            f"[bold]Checklist progress:[/bold] {complete}/{len(checklist_items)} complete\n"
+            f"[bold]Next steps:[/bold]\n{next_steps}"
+        )
+        return Panel.fit(body, title="Launch Overview", style=section_style("green"))
+
+    def _build_quickstart_table(self) -> Table:
+        table = Table(title="Quick Start", expand=False)
+        table.add_column("Action", style="bold")
+        table.add_column("Command")
+        table.add_row("Show checklist", "neonape --show-checklist --init-only")
+        table.add_row("Run next recon step", "neonape --checklist-step 2 --target example.com")
+        table.add_row("Inspect scans", "neonape db scans")
+        table.add_row("Inspect findings", "neonape db findings")
+        table.add_row("Uninstall", "neonape uninstall")
         return table
 
     def _build_scans_table(self, scans: list[dict[str, str | int | None]]) -> Table:
