@@ -14,7 +14,7 @@ SUPPORTED_TOOLS = ("subfinder", "httpx", "naabu", "dnsx", "nuclei")
 def build_projectdiscovery_command(tool_name: str, target: str, output_path: Path) -> tuple[str, list[str]]:
     if tool_name == "subfinder":
         validated = validate_domain(target)
-        command = ["subfinder", "-silent", "-oJ", "-d", validated, "-o", str(output_path)]
+        command = ["subfinder", "-oJ", "-d", validated, "-o", str(output_path)]
         return validated, command
 
     if tool_name == "httpx":
@@ -33,7 +33,6 @@ def build_projectdiscovery_command(tool_name: str, target: str, output_path: Pat
         input_path.write_text(f"{validated}\n", encoding="utf-8")
         command = [
             "dnsx",
-            "-silent",
             "-json",
             "-re",
             "-a",
@@ -223,7 +222,6 @@ def _timeout_for(tool_name: str) -> int:
 def _httpx_base_command() -> list[str]:
     return [
         "httpx",
-        "-silent",
         "-json",
         "-status-code",
         "-title",
@@ -234,11 +232,11 @@ def _httpx_base_command() -> list[str]:
 
 
 def _naabu_base_command() -> list[str]:
-    return ["naabu", "-silent", "-json", "-top-ports", "100"]
+    return ["naabu", "-json", "-top-ports", "100"]
 
 
 def _nuclei_base_command() -> list[str]:
-    return ["nuclei", "-silent", "-jsonl", "-severity", "info,low,medium,high,critical"]
+    return ["nuclei", "-jsonl", "-severity", "info,low,medium,high,critical"]
 
 
 def _validate_batch_target(tool_name: str, target: str) -> str:

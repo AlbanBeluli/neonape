@@ -17,7 +17,7 @@
       "section_name": "Angel Enumeration",
       "title": "Discover subdomains",
       "guide_text": "Use passive sources to identify visible subdomains before deeper validation.",
-      "example_command": "subfinder -d example.com -silent -oJ",
+      "example_command": "subfinder -d example.com -oJ",
       "action_tool": "subfinder",
       "action_profile": "passive_subdomains"
     },
@@ -26,7 +26,7 @@
       "section_name": "Angel Enumeration",
       "title": "Resolve DNS records",
       "guide_text": "Resolve A, AAAA, CNAME, NS, MX, and TXT records for the scoped domain and store them as normalized findings.",
-      "example_command": "dnsx -silent -json -re -a -aaaa -cname -ns -mx -txt -list targets.txt",
+      "example_command": "dnsx -json -re -a -aaaa -cname -ns -mx -txt -list targets.txt",
       "action_tool": "dnsx",
       "action_profile": "dns_records"
     },
@@ -44,7 +44,7 @@
       "section_name": "Eva Unit Scanner",
       "title": "Probe live web services",
       "guide_text": "Check reachable HTTP(S) services, titles, status codes, IPs, and technology fingerprints for scoped targets.",
-      "example_command": "httpx -silent -json -status-code -title -tech-detect -web-server -ip -target https://example.com",
+      "example_command": "httpx -json -status-code -title -tech-detect -web-server -ip -target https://example.com",
       "action_tool": "httpx",
       "action_profile": "web_probe"
     },
