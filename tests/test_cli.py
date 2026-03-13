@@ -61,3 +61,19 @@ def test_parse_workflow_flag() -> None:
     args = parser.parse_args(["--workflow", "pd_chain", "--target", "example.com"])
     assert args.workflow == "pd_chain"
     assert args.target == "example.com"
+
+
+def test_parse_web_workflow_flag() -> None:
+    parser = build_parser()
+    args = parser.parse_args(["--workflow", "pd_web_chain", "--target", "example.com"])
+    assert args.workflow == "pd_web_chain"
+    assert args.target == "example.com"
+
+
+def test_parse_notes_add_command() -> None:
+    parser = build_parser()
+    args = parser.parse_args(["notes", "add", "--title", "Login", "--body", "Panel observed", "--target", "app.example.com"])
+    assert args.command == "notes"
+    assert args.notes_command == "add"
+    assert args.title == "Login"
+    assert args.body == "Panel observed"

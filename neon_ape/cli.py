@@ -14,6 +14,7 @@ def build_parser() -> argparse.ArgumentParser:
             "  neonape\n"
             "  neonape --show-checklist --init-only\n"
             "  neonape --workflow pd_chain --target example.com\n"
+            "  neonape --workflow pd_web_chain --target example.com\n"
             "  neonape --checklist-step 2 --target example.com\n"
             "  neonape --checklist-step 3 --target example.com\n"
             "  neonape --checklist-step 4 --target 192.168.1.10\n"
@@ -39,6 +40,10 @@ def build_parser() -> argparse.ArgumentParser:
             "  neonape export scans --output scans.json\n"
             "  neonape export findings --format csv --output findings.csv\n"
             "  neonape import scans --input scans.json\n\n"
+            "Notes:\n"
+            "  neonape notes list\n"
+            "  neonape notes add --title \"Login panel\" --body \"Observed admin portal\" --target app.example.com\n"
+            "  neonape notes view --id 1\n\n"
             "Nmap profiles:\n"
             "  host_discovery  nmap -sn <target>\n"
             "  service_scan    nmap -sV <target>\n"
@@ -50,7 +55,8 @@ def build_parser() -> argparse.ArgumentParser:
             "  naabu      top-100 TCP port probing for hosts or IPs\n"
             "  nuclei     HTTP template checks with JSONL findings\n\n"
             "Chained workflows:\n"
-            "  pd_chain   subfinder -> httpx -> naabu"
+            "  pd_chain      subfinder -> httpx -> naabu\n"
+            "  pd_web_chain  subfinder -> httpx -> nuclei"
         ),
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
@@ -98,6 +104,17 @@ def build_parser() -> argparse.ArgumentParser:
     import_scans = import_subparsers.add_parser("scans", help="Import a previously exported scan bundle.")
     import_scans.add_argument("--input", required=True, help="Input JSON file path.")
 
+    notes_parser = subparsers.add_parser("notes", help="Manage encrypted local notes.")
+    notes_subparsers = notes_parser.add_subparsers(dest="notes_command", required=True)
+    notes_list = notes_subparsers.add_parser("list", help="List encrypted note headers.")
+    notes_list.add_argument("--target", help="Filter notes by target.")
+    notes_add = notes_subparsers.add_parser("add", help="Add an encrypted note.")
+    notes_add.add_argument("--title", required=True, help="Short note title.")
+    notes_add.add_argument("--body", required=True, help="Note body text.")
+    notes_add.add_argument("--target", help="Optional target label.")
+    notes_view = notes_subparsers.add_parser("view", help="Decrypt and display a note.")
+    notes_view.add_argument("--id", dest="note_id", required=True, type=int, help="Note identifier.")
+
     parser.add_argument(
         "--target",
         help="Validated target hostname, domain, URL, IP, or CIDR depending on the selected action.",
@@ -120,8 +137,8 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--workflow",
-        choices=("pd_chain",),
-        help="Execute a chained workflow. `pd_chain` runs subfinder -> httpx -> naabu.",
+        choices=("pd_chain", "pd_web_chain"),
+        help="Execute a chained workflow. `pd_chain` runs subfinder -> httpx -> naabu. `pd_web_chain` runs subfinder -> httpx -> nuclei.",
     )
     parser.add_argument(
         "--checklist-step",
@@ -160,6 +177,11 @@ def main() -> int:
     app.export_format = getattr(args, "export_format", "json")
     app.import_entity = getattr(args, "import_entity", None)
     app.import_input = getattr(args, "input", None)
+    app.notes_command = getattr(args, "notes_command", None)
+    app.note_title = getattr(args, "title", None)
+    app.note_body = getattr(args, "body", None)
+    app.note_target = getattr(args, "target", None) if args.command == "notes" else None
+    app.note_id = getattr(args, "note_id", None)
     app.uninstall_yes = getattr(args, "yes", False)
     app.uninstall_purge_data = getattr(args, "purge_data", False)
     app.target = args.target

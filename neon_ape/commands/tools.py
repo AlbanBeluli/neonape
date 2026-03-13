@@ -66,6 +66,16 @@ def run_checklist_step(
     )
 
     step_profile = str(action_profile or profile)
+    if action_tool == "workflow":
+        success = run_chained_recon_workflow(
+            console,
+            connection,
+            target=target,
+            scan_dir=scan_dir,
+            workflow_name=step_profile,
+        )
+        mark_step_outcome(console, connection, checklist_step, success)
+        return profile, action_tool
     if action_tool == "nmap":
         success = run_nmap(console, connection, target=target, profile=step_profile, scan_dir=scan_dir)
         mark_step_outcome(console, connection, checklist_step, success)
@@ -183,10 +193,16 @@ def run_chained_recon_workflow(
     *,
     target: str,
     scan_dir: Path,
+    workflow_name: str = "pd_chain",
 ) -> bool:
+    if workflow_name not in {"pd_chain", "pd_web_chain"}:
+        console.print(f"[bold red]Unsupported workflow:[/bold red] {workflow_name}")
+        return False
+
+    workflow_label = "subfinder -> httpx -> naabu" if workflow_name == "pd_chain" else "subfinder -> httpx -> nuclei"
     console.print(
         Panel.fit(
-            f"[bold]Workflow:[/bold] subfinder -> httpx -> naabu\n[bold]Seed target:[/bold] {target}",
+            f"[bold]Workflow:[/bold] {workflow_label}\n[bold]Seed target:[/bold] {target}",
             title="MAGI Chained Recon",
             style=section_style("accent"),
         )
@@ -220,30 +236,47 @@ def run_chained_recon_workflow(
         targets=subdomains,
         scan_dir=scan_dir,
         workflow_name=f"{target}_workflow_httpx",
-        history_target=f"pd_chain:{target}:httpx",
+        history_target=f"{workflow_name}:{target}:httpx",
     )
     if not httpx_success:
         return False
 
+    live_http_targets = _unique_targets(
+        finding.get("host", "")
+        for finding in httpx_findings
+        if finding.get("host")
+    )
     live_hosts = _unique_targets(
         _extract_host(finding.get("host", ""))
         for finding in httpx_findings
         if finding.get("host")
     )
     if not live_hosts:
-        console.print("[bold yellow]No live HTTP targets found for naabu.[/bold yellow]")
+        console.print("[bold yellow]No live HTTP targets found for the next workflow stage.[/bold yellow]")
         return True
 
-    naabu_success, _ = run_projectdiscovery_batch_tool(
+    if workflow_name == "pd_chain":
+        naabu_success, _ = run_projectdiscovery_batch_tool(
+            console,
+            connection,
+            tool_name="naabu",
+            targets=live_hosts,
+            scan_dir=scan_dir,
+            workflow_name=f"{target}_workflow_naabu",
+            history_target=f"{workflow_name}:{target}:naabu",
+        )
+        return naabu_success
+
+    nuclei_success, _ = run_projectdiscovery_batch_tool(
         console,
         connection,
-        tool_name="naabu",
-        targets=live_hosts,
+        tool_name="nuclei",
+        targets=live_http_targets,
         scan_dir=scan_dir,
-        workflow_name=f"{target}_workflow_naabu",
-        history_target=f"pd_chain:{target}:naabu",
+        workflow_name=f"{target}_workflow_nuclei",
+        history_target=f"{workflow_name}:{target}:nuclei",
     )
-    return naabu_success
+    return nuclei_success
 
 
 def mark_step_outcome(console: Console, connection, step_order: int, success: bool) -> None:

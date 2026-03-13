@@ -14,4 +14,5 @@ dist/
 *.enc
 linpeas.sh
 linpeas_output.txt
+MEMORY.md
 .DS_Store

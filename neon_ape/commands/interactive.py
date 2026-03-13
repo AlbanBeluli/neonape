@@ -1,11 +1,14 @@
 from __future__ import annotations
 
+from getpass import getpass
 from pathlib import Path
 
 from rich.console import Console
+from rich.panel import Panel
 from rich.prompt import Prompt
 
 from neon_ape.commands.db import run_db_view
+from neon_ape.commands.notes import run_add_note, run_list_notes, run_view_note
 from neon_ape.commands.tools import (
     run_chained_recon_workflow,
     run_checklist_step,
@@ -13,9 +16,10 @@ from neon_ape.commands.tools import (
     run_projectdiscovery_tool,
 )
 from neon_ape.commands.transfer import run_export
-from neon_ape.db.repository import checklist_summary, list_checklist_items, recent_scans
+from neon_ape.db.repository import checklist_summary, list_checklist_items, list_note_headers, recent_scans
 from neon_ape.ui.layout import build_checklist_table, build_interactive_actions, build_main_menu
 from neon_ape.ui.views import build_landing_panel, build_quickstart_table, build_scans_table, build_status_table
+from neon_ape.ui.theme import section_style
 
 
 def run_interactive_shell(
@@ -28,36 +32,53 @@ def run_interactive_shell(
     current_profile: str,
 ) -> None:
     profile = current_profile
+    last_summary: str | None = None
     while True:
+        console.clear()
         checklist = checklist_summary(connection)
         checklist_items = list_checklist_items(connection)
-        _render_home(console, connection, config, detected_tools, checklist, checklist_items, show_targets=show_targets)
+        _render_home(
+            console,
+            connection,
+            config,
+            detected_tools,
+            checklist,
+            checklist_items,
+            show_targets=show_targets,
+            last_summary=last_summary,
+        )
 
         choice = Prompt.ask(
             "[bold cyan]Select action[/bold cyan]",
-            choices=["1", "2", "3", "4", "5", "6", "7", "q"],
+            choices=["1", "2", "3", "4", "5", "6", "7", "8", "q"],
             default="1",
         )
         if choice == "1":
             console.print(build_checklist_table(checklist_items))
+            _pause(console)
             continue
         if choice == "2":
-            profile = _prompt_checklist_step(console, connection, checklist_items, detected_tools, config.scan_dir, profile)
+            profile, last_summary = _prompt_checklist_step(console, connection, checklist_items, detected_tools, config.scan_dir, profile)
             continue
         if choice == "3":
-            _prompt_single_tool(console, connection, detected_tools, config.scan_dir)
+            last_summary = _prompt_single_tool(console, connection, detected_tools, config.scan_dir)
             continue
         if choice == "4":
-            _prompt_chained_workflow(console, connection, config.scan_dir)
+            last_summary = _prompt_chained_workflow(console, connection, config.scan_dir)
             continue
         if choice == "5":
             _prompt_db_view(console, connection, checklist_items, show_targets=show_targets)
+            last_summary = "Viewed database information."
             continue
         if choice == "6":
             _prompt_export(console, connection)
+            last_summary = "Export completed."
             continue
         if choice == "7":
-            console.clear()
+            last_summary = _prompt_notes(console, connection, config)
+            continue
+        if choice == "8":
+            last_summary = "Screen refreshed."
             continue
         console.print("[bold green]Session closed.[/bold green]")
         return
@@ -72,10 +93,13 @@ def _render_home(
     checklist_items: list[dict[str, str | int | None]],
     *,
     show_targets: bool,
+    last_summary: str | None,
 ) -> None:
     console.print(build_main_menu())
     console.print(build_status_table(checklist, config.db_path, detected_tools))
     console.print(build_landing_panel(config.data_dir, checklist_items))
+    if last_summary:
+        console.print(Panel.fit(last_summary, title="Last Action", style=section_style("accent")))
     console.print(build_quickstart_table())
     console.print(build_interactive_actions())
     console.print(
@@ -93,7 +117,7 @@ def _prompt_checklist_step(
     detected_tools: dict[str, str],
     scan_dir: Path,
     profile: str,
-) -> str:
+) -> tuple[str, str]:
     console.print(build_checklist_table(checklist_items))
     step_value = Prompt.ask("[bold cyan]Checklist step[/bold cyan]")
     target = Prompt.ask("[bold cyan]Target[/bold cyan]")
@@ -101,7 +125,8 @@ def _prompt_checklist_step(
         step_order = int(step_value)
     except ValueError:
         console.print("[bold red]Checklist step must be a number.[/bold red]")
-        return profile
+        _pause(console)
+        return profile, "Checklist step input was invalid."
     profile, _ = run_checklist_step(
         console,
         connection,
@@ -111,7 +136,12 @@ def _prompt_checklist_step(
         scan_dir=scan_dir,
         profile=profile,
     )
-    return profile
+    updated = checklist_summary(connection)
+    _pause(console)
+    return profile, (
+        f"Checklist step {step_order} processed. Progress: "
+        f"{updated.get('complete_count', 0)}/{updated.get('item_count', 0)} complete."
+    )
 
 
 def _prompt_single_tool(
@@ -119,7 +149,7 @@ def _prompt_single_tool(
     connection,
     detected_tools: dict[str, str],
     scan_dir: Path,
-) -> None:
+) -> str:
     tool_name = Prompt.ask(
         "[bold cyan]Tool[/bold cyan]",
         choices=["nmap", "subfinder", "dnsx", "httpx", "naabu", "nuclei"],
@@ -132,17 +162,28 @@ def _prompt_single_tool(
             choices=["host_discovery", "service_scan", "aggressive"],
             default="service_scan",
         )
-        run_nmap(console, connection, target=target, profile=profile, scan_dir=scan_dir)
-        return
+        success = run_nmap(console, connection, target=target, profile=profile, scan_dir=scan_dir)
+        _pause(console)
+        return f"Ran nmap:{profile} against {target}. Status: {'success' if success else 'failed'}."
     if tool_name not in detected_tools:
         console.print(f"[bold red]{tool_name} is not installed or not on PATH.[/bold red]")
-        return
-    run_projectdiscovery_tool(console, connection, tool_name=tool_name, target=target, scan_dir=scan_dir)
+        _pause(console)
+        return f"{tool_name} is not installed."
+    success = run_projectdiscovery_tool(console, connection, tool_name=tool_name, target=target, scan_dir=scan_dir)
+    _pause(console)
+    return f"Ran {tool_name} against {target}. Status: {'success' if success else 'failed'}."
 
 
-def _prompt_chained_workflow(console: Console, connection, scan_dir: Path) -> None:
+def _prompt_chained_workflow(console: Console, connection, scan_dir: Path) -> str:
+    workflow = Prompt.ask(
+        "[bold cyan]Workflow[/bold cyan]",
+        choices=["pd_chain", "pd_web_chain"],
+        default="pd_chain",
+    )
     target = Prompt.ask("[bold cyan]Workflow target domain[/bold cyan]")
-    run_chained_recon_workflow(console, connection, target=target, scan_dir=scan_dir)
+    success = run_chained_recon_workflow(console, connection, target=target, scan_dir=scan_dir, workflow_name=workflow)
+    _pause(console)
+    return f"Ran {workflow} for {target}. Status: {'success' if success else 'failed'}."
 
 
 def _prompt_db_view(
@@ -168,6 +209,7 @@ def _prompt_db_view(
         limit=limit,
         show_targets=show_targets,
     )
+    _pause(console)
 
 
 def _prompt_export(console: Console, connection) -> None:
@@ -183,3 +225,31 @@ def _prompt_export(console: Console, connection) -> None:
         export_format=export_format,
         limit=limit,
     )
+    _pause(console)
+
+
+def _prompt_notes(console: Console, connection, config) -> str:
+    action = Prompt.ask("[bold cyan]Notes[/bold cyan]", choices=["list", "add", "view"], default="list")
+    if action == "list":
+        notes = list_note_headers(connection)
+        run_list_notes(console, notes)
+        _pause(console)
+        return f"Viewed {len(notes)} encrypted note headers."
+    passphrase = getpass("Notes passphrase: ")
+    if action == "add":
+        target = Prompt.ask("[bold cyan]Target[/bold cyan]", default="")
+        title = Prompt.ask("[bold cyan]Title[/bold cyan]")
+        body = Prompt.ask("[bold cyan]Body[/bold cyan]")
+        note_id = run_add_note(console, connection, passphrase=passphrase, title=title, body=body, target=target or None)
+        _pause(console)
+        return f"Stored encrypted note #{note_id}."
+    notes = list_note_headers(connection)
+    run_list_notes(console, notes)
+    note_id = int(Prompt.ask("[bold cyan]Note ID[/bold cyan]"))
+    run_view_note(console, connection, passphrase=passphrase, note_id=note_id)
+    _pause(console)
+    return f"Viewed note #{note_id}."
+
+
+def _pause(console: Console) -> None:
+    console.input("[bold cyan]Press Enter to continue[/bold cyan]")

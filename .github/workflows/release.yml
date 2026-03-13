@@ -1,0 +1,35 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Resolve release notes path
+        id: notes
+        run: |
+          TAG_NAME="${GITHUB_REF_NAME}"
+          NOTES_PATH="docs/releases/${TAG_NAME}.md"
+          if [ ! -f "$NOTES_PATH" ]; then
+            echo "Missing release notes file: $NOTES_PATH" >&2
+            exit 1
+          fi
+          echo "path=$NOTES_PATH" >> "$GITHUB_OUTPUT"
+
+      - name: Publish GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: Neon Ape ${{ github.ref_name }}
+          body_path: ${{ steps.notes.outputs.path }}

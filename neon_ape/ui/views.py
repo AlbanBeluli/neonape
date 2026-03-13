@@ -20,7 +20,10 @@ def build_status_table(checklist: dict[str, str | int], db_path: Path, detected_
     table = Table(title="AT Field Status", expand=False)
     table.add_column("Signal", style="bold")
     table.add_column("Value")
-    table.add_row("Checklist Items", str(checklist.get("item_count", 0)))
+    table.add_row(
+        "Checklist Progress",
+        f"{checklist.get('complete_count', 0)}/{checklist.get('item_count', 0)}",
+    )
     table.add_row("Runtime Data", "local-only")
     table.add_row("Detected Tools", str(len(detected_tools)))
     return table
@@ -210,6 +213,25 @@ def build_recent_findings_table(findings: list[dict[str, str | int | None]]) -> 
             str(finding.get("finding_type", "-")),
             str(finding.get("key", "-")),
             str(finding.get("value", "-")),
+        )
+    return table
+
+
+def build_notes_table(notes: list[dict[str, str | int | None]]) -> Table:
+    table = Table(title="Encrypted Notes", expand=False)
+    table.add_column("ID", style="bold")
+    table.add_column("Target")
+    table.add_column("Title")
+    table.add_column("Updated")
+    if not notes:
+        table.add_row("-", "-", "-", "-")
+        return table
+    for note in notes:
+        table.add_row(
+            str(note.get("id", "-")),
+            str(note.get("target", "-") or "-"),
+            str(note.get("title", "-")),
+            str(note.get("updated_at", "-")),
         )
     return table
 

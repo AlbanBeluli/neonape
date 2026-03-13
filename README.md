@@ -1,16 +1,14 @@
 # Neon Ape
 
-Neon Ape is a local-only Python terminal dashboard for lab-safe penetration testing workflows. It uses a Neon Genesis Evangelion-inspired interface, guided checklists, encrypted local storage, and vetted wrappers for common reconnaissance and enumeration tools.
-
-For a compact current-state reference, see [MEMORY.md](MEMORY.md).
+Neon Ape is a local-only Python terminal dashboard for lab-safe penetration testing workflows. It combines a Neon Genesis Evangelion-inspired terminal UI, guided checklist execution, encrypted local notes, and safe wrappers around common recon tooling.
 
 ## At a Glance
 
-- Local-only terminal workflow for scoped recon and service review
-- Interactive `neonape` shell plus direct CLI commands
-- Built-in wrappers for `nmap`, `subfinder`, `dnsx`, `httpx`, `naabu`, and `nuclei`
-- Chained recon flow: `subfinder -> httpx -> naabu`
-- SQLite-backed checklist, scan history, findings, and notes storage
+- Local-only workflow with no web server or exposed listener
+- Interactive `neonape` shell plus direct CLI subcommands
+- Safe wrappers for `nmap`, `subfinder`, `dnsx`, `httpx`, `naabu`, and `nuclei`
+- Chained recon flows for web triage and service discovery
+- SQLite-backed checklist, scan history, findings, and encrypted notes
 
 This project does not automate brute force, exploitation, credential attacks, or post-exploitation activity.
 
@@ -28,42 +26,29 @@ Useful first commands:
 ```bash
 neonape
 neonape --workflow pd_chain --target example.com
+neonape --workflow pd_web_chain --target example.com
 neonape --tool nuclei --target https://example.com
 neonape db scans
+neonape notes list
 ```
 
-## Scope
-
-The current release is intentionally scoped toward:
+## What It Covers
 
 - Passive reconnaissance
 - Active scanning in authorized environments
-- Findings tracking
+- Findings tracking and local history
 - Notes and checklist management
 - Safe local automation
 
-## Goals
+## Current Feature Set
 
-- Provide a terminal UI with an intentional NGE-inspired theme
-- Guide users through a repeatable workflow with checklists
-- Wrap common tools such as `nmap` with input validation and parsing
-- Store local results securely using SQLite plus field-level encryption
-- Keep the application local-only with no listening service
-
-## MVP Scope
-
-The first implementation milestone focuses on:
-
-- Rich-based terminal shell
-- Main menu and themed sections
+- Rich-based terminal UI with an interactive startup shell
 - Checklist engine backed by SQLite
-- Nmap integration with XML parsing
-- Interactive terminal workflow with menu-driven actions
+- `nmap` integration with XML parsing
 - ProjectDiscovery wrappers for `subfinder`, `httpx`, `naabu`, `dnsx`, and `nuclei`
-- Chained recon workflow: `subfinder -> httpx -> naabu`
-- Passive recon helpers for WHOIS and DNS
-- Encrypted notes and API secrets
-- Local audit logging
+- Chained workflows: `pd_chain` and `pd_web_chain`
+- Encrypted notes and local scan history
+- Import/export, uninstall, and DB inspection commands
 
 ## Package Layout
 
@@ -125,14 +110,7 @@ Core libraries:
 - `pydantic` for config and model validation
 - `lxml` for robust XML parsing
 
-Optional external tools expected on the host:
-
-- `nmap`
-- `whois`
-- `dig`
-- `gobuster` or `dirb` for future user-approved expansions
-
-Detected locally in this workspace environment:
+Supported host tools:
 
 - `nmap`
 - `subfinder`
@@ -140,11 +118,14 @@ Detected locally in this workspace environment:
 - `naabu`
 - `nuclei`
 - `dnsx`
+- `whois`
+- `dig`
+
+Additional tools Neon Ape can detect for future expansion:
+
 - `katana`
 - `assetfinder`
 - `amass`
-- `whois`
-- `dig`
 - `gobuster`
 - `msfconsole`
 
@@ -160,9 +141,9 @@ Detected locally in this workspace environment:
 
 ## Database Design
 
-Schema details live in [docs/schema.md](docs/schema.md) and the initial SQL lives in [schema.sql](neon_ape/db/schema.sql).
+Schema details live in [docs/schema.md](docs/schema.md) and the SQL lives in [schema.sql](neon_ape/db/schema.sql).
 
-Tables planned for the MVP:
+Current tables:
 
 - `checklists`
 - `checklist_items`
@@ -178,14 +159,14 @@ Local checkout:
 
 ```bash
 ./install.sh --source "$(pwd)"
-neonape --init-only
+neonape
 ```
 
 GitHub install:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/AlbanBeluli/neonape/main/install.sh | bash -s -- --repo https://github.com/AlbanBeluli/neonape.git
-neonape --init-only
+neonape
 ```
 
 What the installer does:
@@ -202,7 +183,7 @@ python3 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
 .venv/bin/python -m pip install -e .
-neonape --show-checklist --init-only
+neonape
 ```
 
 Runtime paths:
@@ -243,13 +224,15 @@ Default startup:
 - `neonape` now opens an interactive local shell with checklist progress, next steps, recent scans, and menu-driven actions
 - it does not run any external tools until you choose an action
 
+## Main Commands
+
 Run the safe `nmap` workflow:
 
 ```bash
 neonape --target 192.168.1.10 --profile service_scan --run-nmap
 ```
 
-Run a ProjectDiscovery wrapper:
+Run a single wrapper:
 
 ```bash
 neonape --tool subfinder --target example.com
@@ -259,13 +242,22 @@ neonape --tool dnsx --target example.com
 neonape --tool nuclei --target https://example.com
 ```
 
-Run the chained recon workflow:
+Run a chained workflow:
 
 ```bash
 neonape --workflow pd_chain --target example.com
+neonape --workflow pd_web_chain --target example.com
 ```
 
-Inspect stored database information:
+Manage encrypted notes:
+
+```bash
+neonape notes list
+neonape notes add --title "Admin portal" --body "Observed login at /admin" --target app.example.com
+neonape notes view --id 1
+```
+
+Inspect local database information:
 
 ```bash
 neonape db tables
@@ -283,44 +275,25 @@ neonape export findings --format csv --output findings.csv
 neonape import scans --input scans.json
 ```
 
-Output handling:
+## Storage Behavior
 
 - Each run stores a row in `scan_runs`
-- Parsed records are normalized into `scan_findings`
-- Command history is stored in `tool_history`
-- Raw XML or JSONL artifacts are kept under `.neon_ape/scans/`
-- Runtime data is stored under `~/.neon_ape/`
-- Checklist steps with attached actions are marked `complete` on success and `in_progress` on failure
-- Landing mode masks recent targets by default; use `neonape --show-targets` to reveal them
-- `neonape db cleanup-history` rewrites older chained `httpx` and `naabu` history rows to the newer stable workflow labels
+- Parsed results are normalized into `scan_findings`
+- Command execution history is stored in `tool_history`
+- Raw XML and JSONL artifacts are stored under `~/.neon_ape/scans/`
+- Checklist actions are marked `complete` on success and `in_progress` on failure
+- Landing mode masks saved targets by default; use `neonape --show-targets` to reveal them
+- `neonape db cleanup-history` rewrites older chained `httpx` and `naabu` history rows to the newer workflow labels
+- Notes are encrypted before being stored in SQLite
 
-## Implementation Roadmap
+## Security Notes
 
-### Phase 1: Foundation
-
-- Build package skeleton and config loading
-- Create Rich theme, layout shell, and section routing
-- Add encrypted SQLite bootstrap and migrations
-- Add checklist seed loader
-
-### Phase 2: Core Workflow
-
-- Implement checklist browsing and completion tracking
-- Add secure notes and local history
-- Implement target validation and command builders
-
-### Phase 3: Tool Integrations
-
-- Add `nmap` runner with XML parsing
-- Add passive recon helpers for DNS and WHOIS
-- Add ProjectDiscovery wrapper support for `subfinder`, `httpx`, `naabu`, `dnsx`, `nuclei`, and `katana`
-- Add import/export for local results
-
-### Phase 4: Hardening
-
-- Improve logging, redaction, and failure handling
-- Add tests for validators, crypto, repositories, and parsers
-- Add packaging and installation guidance
+- Local-only execution by design
+- `subprocess.run(..., shell=False)` only
+- Input validation for targets, domains, URLs, and script paths
+- Parameterized SQLite queries
+- Application-layer encryption for notes and secrets
+- No exploitation automation, brute force support, or post-exploitation workflow
 
 ## Existing Files In This Repo
 

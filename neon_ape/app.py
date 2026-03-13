@@ -1,7 +1,9 @@
 from pathlib import Path
+from getpass import getpass
 from rich.panel import Panel
 from rich.console import Console
 
+from neon_ape.commands.notes import run_add_note, run_notes_listing, run_view_note
 from neon_ape.config import AppConfig, detect_installed_tools
 from neon_ape.db.repository import (
     checklist_summary,
@@ -41,6 +43,11 @@ class NeonApeApp:
         self.export_format = "json"
         self.import_entity: str | None = None
         self.import_input: str | None = None
+        self.notes_command: str | None = None
+        self.note_title: str | None = None
+        self.note_body: str | None = None
+        self.note_target: str | None = None
+        self.note_id: int | None = None
         self.uninstall_yes = False
         self.uninstall_purge_data = False
         self.target: str | None = None
@@ -113,6 +120,30 @@ class NeonApeApp:
                 input_path=Path(str(self.import_input)),
             )
             return
+
+        if self.command == "notes":
+            if self.notes_command == "list":
+                run_notes_listing(self.console, connection, target=self.note_target)
+                return
+            passphrase = getpass("Notes passphrase: ")
+            if self.notes_command == "add":
+                run_add_note(
+                    self.console,
+                    connection,
+                    passphrase=passphrase,
+                    title=str(self.note_title),
+                    body=str(self.note_body),
+                    target=self.note_target,
+                )
+                return
+            if self.notes_command == "view":
+                run_view_note(
+                    self.console,
+                    connection,
+                    passphrase=passphrase,
+                    note_id=int(self.note_id),
+                )
+                return
 
         if self.show_checklist or self.checklist_step:
             self.console.print(build_checklist_table(checklist_items))
@@ -192,4 +223,20 @@ class NeonApeApp:
                 connection,
                 target=self.target,
                 scan_dir=self.config.scan_dir,
+                workflow_name=self.workflow,
+            )
+            return
+
+        if self.workflow == "pd_web_chain":
+            required_tools = {"subfinder", "httpx", "nuclei"}
+            missing_tools = sorted(tool for tool in required_tools if tool not in detected_tools)
+            if missing_tools:
+                self.console.print(f"[bold red]Missing workflow tools:[/bold red] {', '.join(missing_tools)}")
+                return
+            run_chained_recon_workflow(
+                self.console,
+                connection,
+                target=self.target,
+                scan_dir=self.config.scan_dir,
+                workflow_name=self.workflow,
             )

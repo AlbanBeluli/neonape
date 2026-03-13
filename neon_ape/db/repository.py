@@ -80,7 +80,10 @@ def seed_checklist_from_file(connection: sqlite3.Connection, checklist_path: Pat
 def checklist_summary(connection: sqlite3.Connection) -> dict[str, str | int]:
     row = connection.execute(
         """
-        SELECT c.title, COUNT(ci.id) AS item_count
+        SELECT
+            c.title,
+            COUNT(ci.id) AS item_count,
+            SUM(CASE WHEN ci.status = 'complete' THEN 1 ELSE 0 END) AS complete_count
         FROM checklists c
         LEFT JOIN checklist_items ci ON ci.checklist_id = c.id
         GROUP BY c.id
@@ -89,8 +92,8 @@ def checklist_summary(connection: sqlite3.Connection) -> dict[str, str | int]:
         """
     ).fetchone()
     if row is None:
-        return {"title": "Unseeded", "item_count": 0}
-    return {"title": row["title"], "item_count": row["item_count"]}
+        return {"title": "Unseeded", "item_count": 0, "complete_count": 0}
+    return {"title": row["title"], "item_count": row["item_count"], "complete_count": row["complete_count"] or 0}
 
 
 def checklist_item_count(connection: sqlite3.Connection) -> int:
@@ -250,6 +253,50 @@ def recent_findings(
     params.append(limit)
     rows = connection.execute(query, tuple(params)).fetchall()
     return [dict(row) for row in rows]
+
+
+def store_note(
+    connection: sqlite3.Connection,
+    *,
+    target: str | None,
+    title: str,
+    ciphertext: bytes,
+) -> int:
+    cursor = connection.execute(
+        """
+        INSERT INTO notes (target, title, ciphertext, updated_at)
+        VALUES (?, ?, ?, CURRENT_TIMESTAMP)
+        """,
+        (target, title, ciphertext),
+    )
+    connection.commit()
+    return int(cursor.lastrowid)
+
+
+def list_note_headers(connection: sqlite3.Connection, target: str | None = None) -> list[dict[str, str | int | None]]:
+    query = """
+        SELECT id, target, title, created_at, updated_at
+        FROM notes
+    """
+    params: list[str] = []
+    if target:
+        query += " WHERE target = ?"
+        params.append(target)
+    query += " ORDER BY updated_at DESC, id DESC"
+    rows = connection.execute(query, tuple(params)).fetchall()
+    return [dict(row) for row in rows]
+
+
+def get_note(connection: sqlite3.Connection, note_id: int) -> dict[str, object] | None:
+    row = connection.execute(
+        """
+        SELECT id, target, title, ciphertext, created_at, updated_at
+        FROM notes
+        WHERE id = ?
+        """,
+        (note_id,),
+    ).fetchone()
+    return dict(row) if row is not None else None
 
 
 def normalize_batch_history_labels(connection: sqlite3.Connection) -> dict[str, int]:

@@ -51,6 +51,15 @@
     {
       "step_order": 6,
       "section_name": "Eva Unit Scanner",
+      "title": "Run chained web triage",
+      "guide_text": "Discover subdomains, verify live web services, and run nuclei template checks against the reachable targets.",
+      "example_command": "neonape --workflow pd_web_chain --target example.com",
+      "action_tool": "workflow",
+      "action_profile": "pd_web_chain"
+    },
+    {
+      "step_order": 7,
+      "section_name": "Eva Unit Scanner",
       "title": "Run service enumeration",
       "guide_text": "Enumerate open services and versions on in-scope hosts and store parsed output.",
       "example_command": "nmap -sV 192.168.1.10",
@@ -58,7 +67,7 @@
       "action_profile": "service_scan"
     },
     {
-      "step_order": 7,
+      "step_order": 8,
       "section_name": "MAGI Checklist",
       "title": "Record findings and next actions",
       "guide_text": "Capture notes, exposed services, and follow-up validation tasks in encrypted local storage.",

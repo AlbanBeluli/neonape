@@ -19,8 +19,8 @@ def test_build_scans_table_masks_targets_when_requested() -> None:
 
 
 def test_build_status_table_hides_db_path() -> None:
-    table = build_status_table({"item_count": 7}, Path("/tmp/example.db"), {"nmap": "/usr/bin/nmap"})
-    assert table.columns[1]._cells == ["7", "local-only", "1"]
+    table = build_status_table({"item_count": 7, "complete_count": 3}, Path("/tmp/example.db"), {"nmap": "/usr/bin/nmap"})
+    assert table.columns[1]._cells == ["3/7", "local-only", "1"]
 
 
 def test_build_recent_findings_table_renders_rows() -> None:
