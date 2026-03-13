@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import os
 from pathlib import Path
 from shutil import which
 
@@ -32,6 +33,9 @@ COMMON_RECON_TOOLS = (
 @dataclass(slots=True)
 class AppConfig:
     app_name: str
+    install_root: Path
+    bin_dir: Path
+    launcher_path: Path
     data_dir: Path
     db_path: Path
     log_path: Path
@@ -43,9 +47,14 @@ class AppConfig:
     def default(cls) -> "AppConfig":
         package_dir = Path(__file__).resolve().parent
         project_root = package_dir.parent
+        install_root = Path(os.environ.get("NEONAPE_INSTALL_ROOT", "~/.local/share/neonape")).expanduser()
+        bin_dir = Path(os.environ.get("NEONAPE_BIN_DIR", "~/.local/bin")).expanduser()
         data_dir = Path.home() / ".neon_ape"
         return cls(
             app_name="Neon Ape",
+            install_root=install_root,
+            bin_dir=bin_dir,
+            launcher_path=bin_dir / "neonape",
             data_dir=data_dir,
             db_path=data_dir / "neon_ape.db",
             log_path=data_dir / "neon_ape.log",

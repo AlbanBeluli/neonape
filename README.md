@@ -154,7 +154,7 @@ neonape --init-only
 GitHub install:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/<user>/<repo>/main/install.sh | bash -s -- --repo https://github.com/<user>/<repo>.git
+curl -fsSL https://raw.githubusercontent.com/AlbanBeluli/neonape/main/install.sh | bash -s -- --repo https://github.com/AlbanBeluli/neonape.git
 neonape --init-only
 ```
 
@@ -185,6 +185,8 @@ Runtime paths:
 Maintenance:
 
 ```bash
+neonape uninstall
+neonape uninstall --purge-data --yes
 ~/.local/share/neonape/update.sh
 ~/.local/share/neonape/uninstall.sh
 ```

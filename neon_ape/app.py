@@ -2,6 +2,7 @@ from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
 from pathlib import Path
+import shutil
 
 from neon_ape.config import AppConfig, detect_installed_tools
 from neon_ape.db.repository import (
@@ -39,6 +40,8 @@ class NeonApeApp:
         self.logger = None
         self.command: str | None = None
         self.db_command: str | None = None
+        self.uninstall_yes = False
+        self.uninstall_purge_data = False
         self.target: str | None = None
         self.profile = "service_scan"
         self.run_nmap = False
@@ -48,6 +51,10 @@ class NeonApeApp:
         self.show_checklist = False
 
     def run(self) -> None:
+        if self.command == "uninstall":
+            self._run_uninstall()
+            return
+
         self.config.ensure_directories()
         self.logger = configure_logger(self.config.log_path)
         connection = connect(self.config.db_path)
@@ -96,6 +103,47 @@ class NeonApeApp:
                 self.console.print(f"[bold red]{self.tool} is not installed or not on PATH.[/bold red]")
                 return
             self._run_projectdiscovery_tool(connection)
+
+    def _run_uninstall(self) -> None:
+        targets = [
+            f"launcher: {self.config.launcher_path}",
+            f"install root: {self.config.install_root}",
+        ]
+        if self.uninstall_purge_data:
+            targets.append(f"runtime data: {self.config.data_dir}")
+
+        self.console.print(
+            Panel.fit(
+                "\n".join(targets),
+                title="Uninstall Neon Ape",
+                style=section_style("orange"),
+            )
+        )
+
+        if not self.uninstall_yes:
+            try:
+                response = input("Proceed with uninstall? [y/N]: ").strip().lower()
+            except EOFError:
+                self.console.print("[bold red]Uninstall aborted. Re-run with `neonape uninstall --yes`.[/bold red]")
+                return
+            if response not in {"y", "yes"}:
+                self.console.print("[bold yellow]Uninstall cancelled.[/bold yellow]")
+                return
+
+        self._remove_path(self.config.launcher_path)
+        self._remove_path(self.config.install_root)
+        if self.uninstall_purge_data:
+            self._remove_path(self.config.data_dir)
+
+        self.console.print("[bold green]Neon Ape uninstalled.[/bold green]")
+
+    def _remove_path(self, path: Path) -> None:
+        if not path.exists() and not path.is_symlink():
+            return
+        if path.is_symlink() or path.is_file():
+            path.unlink(missing_ok=True)
+            return
+        shutil.rmtree(path)
 
     def _run_db_view(self, connection, checklist_items: list[dict[str, str | int | None]]) -> None:
         if self.db_command == "tables":

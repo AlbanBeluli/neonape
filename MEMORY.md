@@ -38,6 +38,11 @@ Database inspection:
 - `neonape db scans`
 - `neonape db findings`
 
+Maintenance:
+
+- `neonape uninstall`
+- `neonape uninstall --purge-data --yes`
+
 ## Data Locations
 
 - Runtime directory: `~/.neon_ape/`

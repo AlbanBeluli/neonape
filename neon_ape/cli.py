@@ -29,6 +29,9 @@ def build_parser() -> argparse.ArgumentParser:
             "  neonape db checklist\n"
             "  neonape db scans\n"
             "  neonape db findings\n\n"
+            "Maintenance:\n"
+            "  neonape uninstall\n"
+            "  neonape uninstall --purge-data --yes\n\n"
             "Nmap profiles:\n"
             "  host_discovery  nmap -sn <target>\n"
             "  service_scan    nmap -sV <target>\n"
@@ -48,6 +51,13 @@ def build_parser() -> argparse.ArgumentParser:
     db_subparsers.add_parser("checklist", help="Show checklist step status and attached actions.")
     db_subparsers.add_parser("scans", help="Show recent scan runs.")
     db_subparsers.add_parser("findings", help="Show recent parsed findings.")
+    uninstall_parser = subparsers.add_parser("uninstall", help="Remove the installed Neon Ape command and private install.")
+    uninstall_parser.add_argument("--yes", action="store_true", help="Skip the confirmation prompt.")
+    uninstall_parser.add_argument(
+        "--purge-data",
+        action="store_true",
+        help="Also remove runtime data under ~/.neon_ape.",
+    )
 
     parser.add_argument(
         "--target",
@@ -92,6 +102,8 @@ def main() -> int:
     app = NeonApeApp()
     app.command = args.command
     app.db_command = getattr(args, "db_command", None)
+    app.uninstall_yes = getattr(args, "yes", False)
+    app.uninstall_purge_data = getattr(args, "purge_data", False)
     app.target = args.target
     app.profile = args.profile
     app.run_nmap = args.run_nmap
