@@ -24,7 +24,7 @@ def build_projectdiscovery_command(tool_name: str, target: str, output_path: Pat
 
     if tool_name == "amass":
         validated = validate_domain(target)
-        command = ["amass", "enum", "-passive", "-d", validated, "-json", str(output_path)]
+        command = ["amass", "enum", "-passive", "-d", validated]
         return validated, command
 
     if tool_name == "httpx":
@@ -106,7 +106,7 @@ def execute_projectdiscovery(command: list[str], tool_name: str, target: str, ou
     cleanup_path = output_path.with_suffix(".input.txt") if tool_name in {"dnsx", "httpx", "naabu", "nuclei", "katana"} else None
     try:
         result = run_command(tool_name, target, command, timeout=_timeout_for(tool_name), raw_output_path=str(output_path))
-        if tool_name == "assetfinder" and result.stdout:
+        if tool_name in {"assetfinder", "amass"} and result.stdout:
             output_path.write_text(result.stdout, encoding="utf-8")
         return result
     finally:
@@ -130,6 +130,11 @@ def parse_projectdiscovery_output(tool_name: str, output_path: Path) -> list[dic
                     continue
                 payload = json.loads(line)
             except json.JSONDecodeError:
+                if tool_name == "amass":
+                    candidate = line.strip()
+                    if candidate and "." in candidate and " " not in candidate:
+                        findings.append({"type": "subdomain", "host": candidate, "key": candidate, "value": "discovered"})
+                        continue
                 findings.append({"type": "raw_output", "value": line})
                 continue
             findings.extend(_parse_payload(tool_name, payload))

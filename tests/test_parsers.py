@@ -7,7 +7,7 @@ from neon_ape.tools.projectdiscovery import (
     parse_projectdiscovery_output,
 )
 from neon_ape.tools.base import run_command
-from neon_ape.tools.web_enum import parse_gobuster_output
+from neon_ape.tools.web_enum import build_gobuster_command, parse_gobuster_output
 
 
 def test_parse_nmap_xml_extracts_host_and_port(tmp_path) -> None:
@@ -89,6 +89,14 @@ def test_parse_amass_json_extracts_subdomains(tmp_path) -> None:
     assert findings[0]["value"] == "1.2.3.4"
 
 
+def test_parse_amass_plain_output_extracts_subdomains(tmp_path) -> None:
+    output = tmp_path / "amass.txt"
+    output.write_text("api.example.com\nwww.example.com\n", encoding="utf-8")
+    findings = parse_projectdiscovery_output("amass", output)
+    assert findings[0]["type"] == "subdomain"
+    assert findings[0]["host"] == "api.example.com"
+
+
 def test_parse_katana_json_extracts_paths(tmp_path) -> None:
     output = tmp_path / "katana.jsonl"
     output.write_text('{"request":{"endpoint":"https://example.com/app.js"},"source":"crawl"}\n', encoding="utf-8")
@@ -121,6 +129,13 @@ def test_parse_gobuster_output_extracts_paths(tmp_path) -> None:
     assert findings[0]["type"] == "web_path"
     assert findings[0]["host"] == "/admin"
     assert findings[0]["value"] == "301"
+
+
+def test_build_gobuster_command_adds_https_to_bare_domain(tmp_path, monkeypatch) -> None:
+    monkeypatch.setattr("neon_ape.tools.web_enum._detect_wordlist", lambda: "/tmp/wordlist.txt")
+    validated, command = build_gobuster_command("example.com", tmp_path / "gobuster.txt")
+    assert validated == "https://example.com"
+    assert "https://example.com" in command
 
 
 def test_render_command_preview_masks_home_paths(monkeypatch) -> None:

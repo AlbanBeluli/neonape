@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from urllib.parse import urlparse
 
 from neon_ape.services.validation import validate_url_or_target
 from neon_ape.tools.base import ToolResult, run_command
@@ -10,14 +11,23 @@ DEFAULT_WORDLISTS = (
     "/usr/share/seclists/Discovery/Web-Content/common.txt",
     "/usr/share/wordlists/dirb/common.txt",
     "/usr/share/dirb/wordlists/common.txt",
+    "/opt/homebrew/share/seclists/Discovery/Web-Content/common.txt",
+    "/opt/homebrew/share/seclists/Discovery/Web-Content/raft-small-words.txt",
+    "/Users/akira/SecLists/Discovery/Web-Content/common.txt",
+    "/Users/akira/SecLists/Discovery/Web-Content/raft-small-words.txt",
+    "/Users/akira/SecLists/Discovery/Web-Content/directory-list-2.3-small.txt",
+    "/Users/akira/dirb/wordlists/common.txt",
 )
 
 
 def build_gobuster_command(target: str, output_path: Path) -> tuple[str, list[str]]:
-    validated = validate_url_or_target(target)
+    validated = _normalize_gobuster_target(target)
     wordlist = _detect_wordlist()
     if wordlist is None:
-        raise ValueError("No supported gobuster wordlist found. Install SecLists or dirb common wordlists.")
+        raise ValueError(
+            "No supported gobuster wordlist found. Install SecLists or dirb common wordlists, "
+            "or place one in a standard path such as ~/SecLists/Discovery/Web-Content/common.txt."
+        )
     command = [
         "gobuster",
         "dir",
@@ -62,3 +72,11 @@ def _detect_wordlist() -> str | None:
         if Path(candidate).exists():
             return candidate
     return None
+
+
+def _normalize_gobuster_target(target: str) -> str:
+    validated = validate_url_or_target(target)
+    parsed = urlparse(validated)
+    if parsed.scheme in {"http", "https"} and parsed.netloc:
+        return validated
+    return f"https://{validated}"

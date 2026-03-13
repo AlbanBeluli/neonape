@@ -203,6 +203,12 @@ def run_gobuster(
     console.print(f"[bold green]gobuster exit code:[/bold green] {result.exit_code}")
     if result.exit_code != 0 and result.stderr:
         console.print(f"[bold red]{result.stderr}[/bold red]")
+        if "matches the provided options for non existing urls" in result.stderr.lower():
+            console.print(
+                "[bold yellow]Gobuster hit a wildcard-style response.[/bold yellow] "
+                "The target returns a normal-looking response for random paths, so directory brute forcing "
+                "needs manual filtering by status code or response length."
+            )
     return result.exit_code == 0
 
 
