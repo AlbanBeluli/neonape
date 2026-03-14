@@ -1,5 +1,8 @@
 # Neon Ape
 
+[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
+[![Python](https://img.shields.io/badge/Python-3.11%2B-blue.svg)](pyproject.toml)
+
 Neon Ape is a local-only Python terminal dashboard for lab-safe penetration testing workflows. It combines a Neon Genesis Evangelion-inspired terminal UI, guided checklist execution, encrypted local notes, and safe wrappers around common recon tooling.
 
 ## At a Glance
@@ -46,6 +49,30 @@ neonape db scans
 neonape db inventory
 neonape notes list
 neonape obsidian --target-note Pentests/example.com/Target.md --dry-run
+```
+
+## Preview
+
+Terminal previews will live here once recorded with `asciinema` or `terminalizer`.
+
+Recommended captures:
+
+- startup shell and checklist view
+- chained recon workflow run
+- Obsidian dry-run preview
+
+Sample DB output:
+
+```text
+$ neonape db scans --limit 3
+                        Recent Scans
+┏━━━━┳━━━━━━━━━━━┳━━━━━━━━━━━━━━┳━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━┓
+┃ ID ┃ Tool      ┃ Target       ┃ Status  ┃ Finished            ┃
+┡━━━━╇━━━━━━━━━━━╇━━━━━━━━━━━━━━╇━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━┩
+│ 21 │ dnsx      │ st***ee      │ success │ 2026-03-13 17:12:44 │
+│ 20 │ nuclei    │ pd***ei      │ failed  │ 2026-03-13 17:10:20 │
+│ 19 │ httpx     │ pd***px      │ success │ 2026-03-13 17:05:20 │
+└────┴───────────┴──────────────┴─────────┴─────────────────────┘
 ```
 
 ## What It Covers
@@ -169,7 +196,9 @@ Current tables:
 - `tool_history`
 - `secrets`
 
-## Install
+## Setup Options
+
+If you already used the GitHub one-line install from Quick Start, skip to `Runtime paths` below.
 
 Local checkout:
 
@@ -178,10 +207,13 @@ Local checkout:
 neonape
 ```
 
-GitHub install:
+Manual development setup:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/AlbanBeluli/neonape/main/install.sh | bash -s -- --repo https://github.com/AlbanBeluli/neonape.git
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+.venv/bin/python -m pip install -e .
 neonape
 ```
 
@@ -201,16 +233,6 @@ What the installer does:
 - links the Obsidian launcher to `~/.local/bin/neonape-obsidian`
 - keeps runtime data under `~/.neon_ape/`
 - auto-detects a likely Obsidian vault and seeds `obsidian_vault_path` when possible
-
-## Manual Dev Setup
-
-```bash
-python3 -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
-.venv/bin/python -m pip install -e .
-neonape
-```
 
 Runtime paths:
 
@@ -452,3 +474,7 @@ Sample inputs live under:
 - Parameterized SQLite queries
 - Application-layer encryption for notes and secrets
 - No exploitation automation, brute force support, or post-exploitation workflow
+
+## License
+
+Neon Ape is released under the [MIT License](LICENSE).
