@@ -4,6 +4,8 @@ from neon_ape.config import AppConfig
 from neon_ape.obsidian_sync import (
     build_attack_canvas,
     build_target_index,
+    derive_target_from_note_reference,
+    normalize_target_note_reference,
     parse_frontmatter,
     preview_scan_artifacts,
     render_findings_markdown,
@@ -91,6 +93,18 @@ def test_preview_scan_artifacts_returns_unique_names() -> None:
         ]
     )
     assert artifacts == ["httpx_example.jsonl", "nuclei_example.jsonl"]
+
+
+def test_normalize_target_note_reference_maps_simple_target_name() -> None:
+    assert normalize_target_note_reference("test") == Path("Pentests") / "test" / "Target.md"
+
+
+def test_normalize_target_note_reference_keeps_explicit_markdown_path() -> None:
+    assert normalize_target_note_reference("Pentests/example.com/Target.md") == Path("Pentests") / "example.com" / "Target.md"
+
+
+def test_derive_target_from_note_reference_uses_parent_folder_for_target_md() -> None:
+    assert derive_target_from_note_reference(Path("Pentests") / "example.com" / "Target.md") == "example.com"
 
 
 def test_resolve_vault_path_uses_config_value(tmp_path, monkeypatch) -> None:

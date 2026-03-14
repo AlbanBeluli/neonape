@@ -96,7 +96,9 @@ def run_sync(args: argparse.Namespace | SimpleNamespace, console: Console | None
             "Use `--vault-path`, set `obsidian_vault_path` with `neonape config set`, or run from inside a vault."
         )
         return 1
-    target_note = vault_path / str(getattr(args, "target_note"))
+    requested_target_note = str(getattr(args, "target_note"))
+    target_note_relative = normalize_target_note_reference(requested_target_note)
+    target_note = vault_path / target_note_relative
 
     if not vault_path.exists():
         if cli_vault_path:
@@ -111,8 +113,19 @@ def run_sync(args: argparse.Namespace | SimpleNamespace, console: Console | None
             active_console.print(f"[bold red]Vault path does not exist:[/bold red] {vault_path}")
         return 1
     if not target_note.exists():
-        active_console.print(f"[bold red]Target note does not exist:[/bold red] {target_note}")
-        return 1
+        if getattr(args, "dry_run", False):
+            active_console.print(
+                Panel.fit(
+                    f"Target note does not exist yet.\n"
+                    f"Neon Ape would create a starter note at:\n"
+                    f"{target_note}\n\n"
+                    f"Input `{requested_target_note}` was normalized to `{target_note_relative}`.",
+                    title="Obsidian Dry Run",
+                    style="bold yellow",
+                )
+            )
+        else:
+            create_target_note(target_note, derive_target_from_note_reference(target_note_relative))
 
     obsidian_path = shutil.which("obsidian")
     if not obsidian_path:
@@ -233,6 +246,32 @@ def ensure_template(template_path: Path) -> None:
         return
     template_path.parent.mkdir(parents=True, exist_ok=True)
     template_path.write_text(DEFAULT_TEMPLATE, encoding="utf-8")
+
+
+def create_target_note(target_note: Path, target: str) -> None:
+    target_note.parent.mkdir(parents=True, exist_ok=True)
+    payload = DEFAULT_TEMPLATE.replace('target: "example.com"', f'target: "{target}"')
+    target_note.write_text(payload, encoding="utf-8")
+
+
+def normalize_target_note_reference(value: str) -> Path:
+    stripped = value.strip()
+    if not stripped:
+        return Path("Pentests") / "example.com" / "Target.md"
+    reference = Path(stripped)
+    if "/" not in stripped and "\\" not in stripped and reference.suffix.lower() != ".md":
+        return Path("Pentests") / sanitize_target_name(stripped) / "Target.md"
+    if reference.suffix.lower() != ".md":
+        return reference / "Target.md"
+    return reference
+
+
+def derive_target_from_note_reference(reference: Path) -> str:
+    parts = reference.parts
+    if len(parts) >= 2 and parts[-1].lower() == "target.md":
+        return parts[-2]
+    stem = reference.stem.strip()
+    return stem or "example.com"
 
 
 def sanitize_target_name(target: str) -> str:
