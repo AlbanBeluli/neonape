@@ -48,6 +48,7 @@ class AppConfig:
     privacy_mode: bool
     theme_name: str
     obsidian_vault_path: Path | None
+    llm_model: str = "qwen3.5:4b"
 
     @classmethod
     def default(cls) -> "AppConfig":
@@ -62,6 +63,7 @@ class AppConfig:
         theme_name = str(file_config.get("theme_name", "eva")).strip() or "eva"
         obsidian_vault_raw = str(file_config.get("obsidian_vault_path", "")).strip()
         obsidian_vault_path = Path(obsidian_vault_raw).expanduser() if obsidian_vault_raw else None
+        llm_model = str(os.environ.get("NEONAPE_LLM_MODEL", file_config.get("llm_model", "qwen3.5:4b"))).strip() or "qwen3.5:4b"
         return cls(
             app_name="Neon Ape",
             config_path=config_path,
@@ -77,6 +79,7 @@ class AppConfig:
             privacy_mode=privacy_mode,
             theme_name=theme_name,
             obsidian_vault_path=obsidian_vault_path,
+            llm_model=llm_model,
         )
 
     def ensure_directories(self) -> None:

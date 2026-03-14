@@ -84,7 +84,7 @@ def run_interactive_shell(
             last_summary = _prompt_notes(console, connection, config)
             continue
         if choice == "8":
-            last_summary = _prompt_review(console, connection)
+            last_summary = _prompt_review(console, connection, config)
             continue
         if choice == "9":
             last_summary = "Screen refreshed."
@@ -351,7 +351,7 @@ def _prompt_notes(console: Console, connection, config) -> str:
     return f"Viewed note #{note_id}."
 
 
-def _prompt_review(console: Console, connection) -> str:
+def _prompt_review(console: Console, connection, config) -> str:
     target = _ask_text(console, "Review target")
     if target is None:
         return "Returned from review summary."
@@ -364,9 +364,17 @@ def _prompt_review(console: Console, connection) -> str:
         console.print("[bold red]Limit must be a number.[/bold red]")
         _pause(console)
         return "Review limit input was invalid."
-    run_review(console, connection, target=target, limit=limit)
+    llm_triage = Prompt.ask("[bold cyan]Local LLM triage[/bold cyan]", choices=["y", "n"], default="n") == "y"
+    llm_model = config.llm_model
+    if llm_triage:
+        llm_model_value = _ask_text(console, "LLM model", default=config.llm_model)
+        if llm_model_value is None:
+            return "Returned from review summary."
+        llm_model = llm_model_value
+    run_review(console, connection, target=target, limit=limit, llm_triage=llm_triage, llm_model=llm_model)
     _pause(console)
-    return f"Reviewed {target}."
+    suffix = f" with local triage via {llm_model}" if llm_triage else ""
+    return f"Reviewed {target}{suffix}."
 
 
 def _prompt_config(console: Console, config) -> str:

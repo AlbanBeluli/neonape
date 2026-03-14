@@ -13,6 +13,7 @@ Neon Ape is a local-only Python terminal dashboard for lab-safe penetration test
 - Chained recon flows for light recon, deep recon, web triage, and JS-heavy targets
 - SQLite-backed checklist, scan history, findings, and encrypted notes
 - Config-backed Obsidian sync with vault auto-discovery and dry-run previews
+- Optional local findings triage through `ollama` with a configurable model
 
 This project does not automate brute force, exploitation, credential attacks, or post-exploitation activity.
 
@@ -49,6 +50,7 @@ neonape db scans
 neonape db inventory
 neonape notes list
 neonape obsidian --target-note Pentests/example.com/Target.md --dry-run
+neonape review --target example.com --llm-triage
 ```
 
 ## Preview
@@ -95,6 +97,7 @@ $ neonape db scans --limit 3
 - Encrypted notes and local scan history
 - Import/export, uninstall, and DB inspection commands
 - Native `neonape obsidian`, `neonape config`, and `neonape update` maintenance flows
+- Local LLM triage via `ollama` with the model controlled by config or CLI
 
 ## Package Layout
 
@@ -252,6 +255,7 @@ data_dir = "~/.neon_ape"
 install_root = "~/.local/share/neonape"
 bin_dir = "~/.local/bin"
 obsidian_vault_path = "~/Documents/Obsidian"
+llm_model = "qwen3.5:4b"
 ```
 
 Built-in config commands:
@@ -262,6 +266,7 @@ neonape config init
 neonape config set privacy_mode false
 neonape config set theme_name seele
 neonape config set obsidian_vault_path ~/Documents/Obsidian
+neonape config set llm_model qwen3.5:4b
 ```
 
 If the installer detects an Obsidian vault, you usually do not need to set `obsidian_vault_path` manually.
@@ -385,6 +390,15 @@ neonape db notes
 neonape db domain --target example.com
 neonape db cleanup-history
 ```
+
+Local LLM review triage:
+
+```bash
+neonape review --target example.com --llm-triage
+neonape review --target example.com --llm-triage --llm-model llama3.2:3b
+```
+
+This uses your local `ollama` install only. No remote API is involved. The default model is `qwen3.5:4b`, but you can switch to any locally installed model through `--llm-model` or `neonape config set llm_model ...`.
 
 Export and import:
 

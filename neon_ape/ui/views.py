@@ -370,6 +370,10 @@ def build_review_summary_panel(target: str, overview: dict[str, list[dict[str, s
     return Panel.fit(body, title="Smart Review", style=section_style("orange"))
 
 
+def build_llm_triage_panel(content: str, model: str) -> Panel:
+    return Panel.fit(content.strip() or "No local LLM triage output.", title=f"Local LLM Triage ({model})", style=section_style("accent"))
+
+
 def build_web_path_table(findings: list[dict[str, str | int | None]], tool_name: str) -> Table:
     table = Table(title=f"{tool_name.title()} Findings", expand=False)
     if tool_name == "gobuster":

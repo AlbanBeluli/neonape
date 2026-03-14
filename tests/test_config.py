@@ -19,6 +19,7 @@ def test_default_config_uses_home_and_env(monkeypatch) -> None:
     assert config.db_path == Path("/tmp/neon-home/.neon_ape/neon_ape.db")
     assert config.schema_path.name == "schema.sql"
     assert config.checklist_path.name == "neon_ape_checklist.json"
+    assert config.llm_model == "qwen3.5:4b"
 
 
 def test_ensure_directories_creates_runtime_dirs(tmp_path) -> None:
@@ -57,6 +58,7 @@ bin_dir = "~/bin"
 data_dir = "~/secure/neonape"
 privacy_mode = false
 obsidian_vault_path = "~/vaults/neon"
+llm_model = "llama3.2:3b"
 """.strip(),
         encoding="utf-8",
     )
@@ -71,6 +73,7 @@ obsidian_vault_path = "~/vaults/neon"
     assert config.privacy_mode is False
     assert config.theme_name == "eva"
     assert config.obsidian_vault_path == Path(tmp_path / "home/vaults/neon")
+    assert config.llm_model == "llama3.2:3b"
 
 
 def test_save_and_update_user_config(tmp_path) -> None:
@@ -81,7 +84,9 @@ def test_save_and_update_user_config(tmp_path) -> None:
     update_user_config("privacy_mode", "false", config_path)
     update_user_config("theme_name", "seele", config_path)
     update_user_config("obsidian_vault_path", "~/vault", config_path)
+    update_user_config("llm_model", "qwen3.5:4b", config_path)
     loaded = load_user_config(config_path)
     assert loaded["privacy_mode"] is False
     assert loaded["theme_name"] == "seele"
     assert loaded["obsidian_vault_path"] == "~/vault"
+    assert loaded["llm_model"] == "qwen3.5:4b"
