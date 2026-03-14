@@ -1,4 +1,8 @@
+from pathlib import Path
+
 from neon_ape.cli import build_parser
+from neon_ape.app import NeonApeApp
+from neon_ape.config import AppConfig
 
 
 def test_parse_db_subcommand() -> None:
@@ -167,3 +171,44 @@ def test_parse_notes_add_command() -> None:
     assert args.notes_command == "add"
     assert args.title == "Login"
     assert args.body == "Panel observed"
+
+
+def test_db_json_mode_avoids_banner_output(tmp_path, monkeypatch) -> None:
+    output: list[str] = []
+
+    class StubConsole:
+        def print(self, message) -> None:
+            output.append(str(message))
+
+        def print_json(self, message: str) -> None:
+            output.append(message)
+
+    config = AppConfig(
+        app_name="Neon Ape",
+        config_path=tmp_path / "config.toml",
+        install_root=tmp_path / "install",
+        bin_dir=tmp_path / "bin",
+        launcher_path=tmp_path / "bin" / "neonape",
+        data_dir=tmp_path / "data",
+        db_path=tmp_path / "data" / "neon_ape.db",
+        log_path=tmp_path / "data" / "neon_ape.log",
+        checklist_path=tmp_path / "seed.json",
+        schema_path=Path(__file__).resolve().parents[1] / "neon_ape" / "db" / "schema.sql",
+        scan_dir=tmp_path / "data" / "scans",
+        privacy_mode=True,
+        theme_name="eva",
+        obsidian_vault_path=None,
+    )
+    checklist_path = Path(__file__).resolve().parents[1] / "neon_ape" / "checklists" / "neon_ape_checklist.json"
+    config.checklist_path = checklist_path  # type: ignore[misc]
+    monkeypatch.setattr("neon_ape.app.configure_logger", lambda path: None)
+
+    app = NeonApeApp(config=config)
+    app.console = StubConsole()
+    app.command = "db"
+    app.db_command = "tables"
+    app.db_json_output = True
+    app.run()
+
+    assert output
+    assert not any("Neon Ape" in line for line in output[:-1])

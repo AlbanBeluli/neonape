@@ -134,9 +134,11 @@ class NeonApeApp:
         checklist_items = list_checklist_items(connection)
         detected_tools = detect_installed_tools()
         interactive_mode = not any((self.command, self.run_nmap, self.tool, self.checklist_step, self.workflow, self.init_only))
+        machine_output_mode = (self.command == "db" and self.db_json_output) or (self.command == "review" and self.review_json_output)
 
-        self.console.print(Panel.fit(EVA_BANNER, title=APP_TITLE, style=section_style("accent")))
-        if not interactive_mode:
+        if not machine_output_mode:
+            self.console.print(Panel.fit(EVA_BANNER, title=APP_TITLE, style=section_style("accent")))
+        if not interactive_mode and not machine_output_mode:
             self.console.print(build_main_menu())
             self.console.print(build_status_table(checklist, self.config.db_path, detected_tools))
 
