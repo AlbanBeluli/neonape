@@ -83,7 +83,6 @@ mkdir -p "$INSTALL_ROOT" "$BIN_DIR"
 SRC_DIR="${INSTALL_ROOT}/src"
 VENV_DIR="${INSTALL_ROOT}/venv"
 METADATA_FILE="${INSTALL_ROOT}/install.env"
-SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 if [[ -z "$SOURCE_DIR" && -z "$REPO_URL" ]]; then
   if [[ -f "./pyproject.toml" && -d "./neon_ape" ]]; then
@@ -114,12 +113,13 @@ else
 fi
 
 python3 -m venv "$VENV_DIR"
-if ! "$VENV_DIR/bin/python" -m pip install --upgrade pip setuptools wheel; then
-  echo "Continuing with the virtualenv's bundled packaging tools." >&2
+if ! "$VENV_DIR/bin/python" -m pip install --no-build-isolation "$SRC_DIR"; then
+  echo "Initial install failed. Attempting setuptools/wheel bootstrap..." >&2
+  "$VENV_DIR/bin/python" -m pip install setuptools wheel
+  "$VENV_DIR/bin/python" -m pip install --no-build-isolation "$SRC_DIR"
 fi
-"$VENV_DIR/bin/python" -m pip install "$SRC_DIR"
 ln -sf "$VENV_DIR/bin/neonape" "$BIN_DIR/neonape"
-cp "$SELF_DIR/install.sh" "$SELF_DIR/update.sh" "$SELF_DIR/uninstall.sh" "$INSTALL_ROOT"/
+cp "$SRC_DIR/install.sh" "$SRC_DIR/update.sh" "$SRC_DIR/uninstall.sh" "$INSTALL_ROOT"/
 chmod +x "$INSTALL_ROOT/install.sh" "$INSTALL_ROOT/update.sh" "$INSTALL_ROOT/uninstall.sh"
 
 cat > "$METADATA_FILE" <<EOF

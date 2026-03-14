@@ -25,6 +25,12 @@ curl -fsSL https://raw.githubusercontent.com/AlbanBeluli/neonape/main/install.sh
 neonape
 ```
 
+If your shell has not picked up `~/.local/bin` yet, run:
+
+```bash
+~/.local/bin/neonape
+```
+
 Useful first commands:
 
 ```bash
