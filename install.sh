@@ -5,6 +5,8 @@ APP_NAME="neonape"
 DEFAULT_INSTALL_ROOT="${HOME}/.local/share/${APP_NAME}"
 DEFAULT_BIN_DIR="${HOME}/.local/bin"
 DEFAULT_BRANCH="main"
+DEFAULT_CONFIG_DIR="${XDG_CONFIG_HOME:-${HOME}/.config}/${APP_NAME}"
+DEFAULT_CONFIG_PATH="${DEFAULT_CONFIG_DIR}/config.toml"
 
 INSTALL_ROOT="${NEONAPE_INSTALL_ROOT:-$DEFAULT_INSTALL_ROOT}"
 BIN_DIR="${NEONAPE_BIN_DIR:-$DEFAULT_BIN_DIR}"
@@ -83,6 +85,82 @@ mkdir -p "$INSTALL_ROOT" "$BIN_DIR"
 SRC_DIR="${INSTALL_ROOT}/src"
 VENV_DIR="${INSTALL_ROOT}/venv"
 METADATA_FILE="${INSTALL_ROOT}/install.env"
+CONFIG_PATH="$DEFAULT_CONFIG_PATH"
+
+detect_obsidian_vault() {
+  if [[ -n "${NEONAPE_OBSIDIAN_VAULT:-}" && -d "${NEONAPE_OBSIDIAN_VAULT:-}" ]]; then
+    printf '%s\n' "$NEONAPE_OBSIDIAN_VAULT"
+    return 0
+  fi
+
+  local candidates=(
+    "$HOME/Documents/Obsidian"
+    "$HOME/Obsidian"
+    "$HOME/Documents/Notes"
+  )
+  local candidate=""
+  for candidate in "${candidates[@]}"; do
+    if [[ -d "$candidate/.obsidian" ]]; then
+      printf '%s\n' "$candidate"
+      return 0
+    fi
+  done
+
+  local search_root=""
+  for search_root in "$HOME/Documents" "$HOME"; do
+    if [[ -d "$search_root" ]]; then
+      candidate="$(find "$search_root" -maxdepth 3 -type d -name .obsidian 2>/dev/null | head -n 1 || true)"
+      if [[ -n "$candidate" ]]; then
+        dirname "$candidate"
+        return 0
+      fi
+    fi
+  done
+
+  return 1
+}
+
+seed_obsidian_config() {
+  local vault_path="$1"
+  if [[ -z "$vault_path" ]]; then
+    return 0
+  fi
+
+  mkdir -p "$(dirname "$CONFIG_PATH")"
+
+  if [[ -f "$CONFIG_PATH" ]] && grep -q '^[[:space:]]*obsidian_vault_path[[:space:]]*=' "$CONFIG_PATH"; then
+    return 0
+  fi
+
+  "$VENV_DIR/bin/python" - <<'PY' "$CONFIG_PATH" "$vault_path"
+from pathlib import Path
+import sys
+
+config_path = Path(sys.argv[1]).expanduser()
+vault_path = sys.argv[2]
+existing = config_path.read_text(encoding="utf-8") if config_path.exists() else ""
+lines = existing.splitlines()
+
+if any(line.strip().startswith("obsidian_vault_path") for line in lines):
+    raise SystemExit(0)
+
+if not existing.strip():
+    payload = f"[neonape]\nobsidian_vault_path = \"{vault_path}\"\n"
+elif "[neonape]" in existing:
+    updated = []
+    inserted = False
+    for line in lines:
+        updated.append(line)
+        if not inserted and line.strip() == "[neonape]":
+            updated.append(f"obsidian_vault_path = \"{vault_path}\"")
+            inserted = True
+    payload = "\n".join(updated) + ("\n" if existing.endswith("\n") else "\n")
+else:
+    payload = existing.rstrip() + "\n\n[neonape]\n" + f"obsidian_vault_path = \"{vault_path}\"\n"
+
+config_path.write_text(payload, encoding="utf-8")
+PY
+}
 
 if [[ -z "$SOURCE_DIR" && -z "$REPO_URL" ]]; then
   if [[ -f "./pyproject.toml" && -d "./neon_ape" ]]; then
@@ -122,6 +200,11 @@ ln -sf "$VENV_DIR/bin/neonape-obsidian" "$BIN_DIR/neonape-obsidian"
 cp "$SRC_DIR/install.sh" "$SRC_DIR/update.sh" "$SRC_DIR/uninstall.sh" "$INSTALL_ROOT"/
 chmod +x "$INSTALL_ROOT/install.sh" "$INSTALL_ROOT/update.sh" "$INSTALL_ROOT/uninstall.sh"
 
+DETECTED_OBSIDIAN_VAULT="$(detect_obsidian_vault || true)"
+if [[ -n "$DETECTED_OBSIDIAN_VAULT" ]]; then
+  seed_obsidian_config "$DETECTED_OBSIDIAN_VAULT"
+fi
+
 cat > "$METADATA_FILE" <<EOF
 INSTALL_ROOT=$INSTALL_ROOT
 BIN_DIR=$BIN_DIR
@@ -145,6 +228,16 @@ Maintenance:
   $INSTALL_ROOT/update.sh
   $INSTALL_ROOT/uninstall.sh
 EOF
+
+if [[ -n "$DETECTED_OBSIDIAN_VAULT" ]]; then
+  cat <<EOF
+
+Obsidian:
+  Detected vault: $DETECTED_OBSIDIAN_VAULT
+  Seeded obsidian_vault_path in:
+    $CONFIG_PATH
+EOF
+fi
 
 case ":$PATH:" in
   *":$BIN_DIR:"*) ;;

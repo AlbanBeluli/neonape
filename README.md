@@ -200,6 +200,7 @@ What the installer does:
 - links the global launcher to `~/.local/bin/neonape`
 - links the Obsidian launcher to `~/.local/bin/neonape-obsidian`
 - keeps runtime data under `~/.neon_ape/`
+- auto-detects a likely Obsidian vault and seeds `obsidian_vault_path` when possible
 
 ## Manual Dev Setup
 
@@ -240,6 +241,8 @@ neonape config set privacy_mode false
 neonape config set theme_name seele
 neonape config set obsidian_vault_path ~/Documents/Obsidian
 ```
+
+If the installer detects an Obsidian vault, you usually do not need to set `obsidian_vault_path` manually.
 
 Maintenance:
 
