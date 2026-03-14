@@ -104,8 +104,7 @@ else
   require_cmd git
   if [[ -d "$SRC_DIR/.git" ]]; then
     git -C "$SRC_DIR" fetch --depth 1 origin "$BRANCH"
-    git -C "$SRC_DIR" checkout "$BRANCH"
-    git -C "$SRC_DIR" pull --ff-only origin "$BRANCH"
+    git -C "$SRC_DIR" checkout -B "$BRANCH" "origin/$BRANCH"
   else
     rm -rf "$SRC_DIR"
     git clone --depth 1 --branch "$BRANCH" "$REPO_URL" "$SRC_DIR"
