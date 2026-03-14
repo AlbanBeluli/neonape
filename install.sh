@@ -119,6 +119,7 @@ if ! "$VENV_DIR/bin/python" -m pip install --no-build-isolation "$SRC_DIR"; then
   "$VENV_DIR/bin/python" -m pip install --no-build-isolation "$SRC_DIR"
 fi
 ln -sf "$VENV_DIR/bin/neonape" "$BIN_DIR/neonape"
+ln -sf "$VENV_DIR/bin/neonape-obsidian" "$BIN_DIR/neonape-obsidian"
 cp "$SRC_DIR/install.sh" "$SRC_DIR/update.sh" "$SRC_DIR/uninstall.sh" "$INSTALL_ROOT"/
 chmod +x "$INSTALL_ROOT/install.sh" "$INSTALL_ROOT/update.sh" "$INSTALL_ROOT/uninstall.sh"
 
@@ -135,9 +136,11 @@ Neon Ape installed.
 
 Command:
   $BIN_DIR/neonape
+  $BIN_DIR/neonape-obsidian
 
 If $BIN_DIR is already on your PATH, just run:
   neonape --init-only
+  neonape-obsidian -h
 
 Maintenance:
   $INSTALL_ROOT/update.sh

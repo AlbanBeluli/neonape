@@ -29,6 +29,7 @@ If your shell has not picked up `~/.local/bin` yet, run:
 
 ```bash
 ~/.local/bin/neonape
+~/.local/bin/neonape-obsidian -h
 ```
 
 Useful first commands:
