@@ -88,7 +88,8 @@ def main() -> int:
 def run_sync(args: argparse.Namespace | SimpleNamespace, console: Console | None = None) -> int:
     active_console = console or Console()
     config = AppConfig.default()
-    vault_path = resolve_vault_path(getattr(args, "vault_path", None), config)
+    cli_vault_path = getattr(args, "vault_path", None)
+    vault_path = resolve_vault_path(cli_vault_path, config)
     if vault_path is None:
         active_console.print(
             "[bold red]Unable to determine the Obsidian vault path.[/bold red] "
@@ -98,7 +99,16 @@ def run_sync(args: argparse.Namespace | SimpleNamespace, console: Console | None
     target_note = vault_path / str(getattr(args, "target_note"))
 
     if not vault_path.exists():
-        active_console.print(f"[bold red]Vault path does not exist:[/bold red] {vault_path}")
+        if cli_vault_path:
+            active_console.print(f"[bold red]Vault path does not exist:[/bold red] {vault_path}")
+        elif config.obsidian_vault_path and config.obsidian_vault_path.expanduser().resolve() == vault_path:
+            active_console.print(
+                "[bold red]Configured Obsidian vault path does not exist.[/bold red] "
+                f"Update `obsidian_vault_path` in {config.config_path} or run "
+                "`neonape config set obsidian_vault_path /path/to/vault`."
+            )
+        else:
+            active_console.print(f"[bold red]Vault path does not exist:[/bold red] {vault_path}")
         return 1
     if not target_note.exists():
         active_console.print(f"[bold red]Target note does not exist:[/bold red] {target_note}")
@@ -209,12 +219,12 @@ def parse_frontmatter(markdown: str) -> tuple[dict[str, Any], str]:
 def resolve_vault_path(cli_value: str | None, config: AppConfig) -> Path | None:
     if cli_value:
         return Path(cli_value).expanduser().resolve()
-    if config.obsidian_vault_path:
-        return config.obsidian_vault_path.expanduser().resolve()
     current = Path.cwd().resolve()
     for candidate in (current, *current.parents):
         if (candidate / ".obsidian").exists():
             return candidate
+    if config.obsidian_vault_path:
+        return config.obsidian_vault_path.expanduser().resolve()
     return None
 
 
