@@ -9,6 +9,7 @@ Neon Ape is a local-only Python terminal dashboard for lab-safe penetration test
 - Safe wrappers for `nmap`, `subfinder`, `assetfinder`, `amass`, `dnsx`, `httpx`, `naabu`, `katana`, `gobuster`, and `nuclei`
 - Chained recon flows for light recon, deep recon, web triage, and JS-heavy targets
 - SQLite-backed checklist, scan history, findings, and encrypted notes
+- Config-backed Obsidian sync with vault auto-discovery and dry-run previews
 
 This project does not automate brute force, exploitation, credential attacks, or post-exploitation activity.
 
@@ -42,7 +43,9 @@ neonape --workflow light_recon --target example.com
 neonape --workflow js_web_chain --target example.com
 neonape --tool nuclei --target https://example.com
 neonape db scans
+neonape db inventory
 neonape notes list
+neonape obsidian --target-note Pentests/example.com/Target.md --dry-run
 ```
 
 ## What It Covers
@@ -64,6 +67,7 @@ neonape notes list
 - Welcome panel, missing-tool guidance, and severity-colored review tables
 - Encrypted notes and local scan history
 - Import/export, uninstall, and DB inspection commands
+- Native `neonape obsidian`, `neonape config`, and `neonape update` maintenance flows
 
 ## Package Layout
 
@@ -194,6 +198,7 @@ What the installer does:
 - creates a private virtual environment under `~/.local/share/neonape/venv`
 - installs Neon Ape into that private environment
 - links the global launcher to `~/.local/bin/neonape`
+- links the Obsidian launcher to `~/.local/bin/neonape-obsidian`
 - keeps runtime data under `~/.neon_ape/`
 
 ## Manual Dev Setup
@@ -223,6 +228,7 @@ theme_name = "eva"
 data_dir = "~/.neon_ape"
 install_root = "~/.local/share/neonape"
 bin_dir = "~/.local/bin"
+obsidian_vault_path = "~/Documents/Obsidian"
 ```
 
 Built-in config commands:
@@ -232,11 +238,14 @@ neonape config show
 neonape config init
 neonape config set privacy_mode false
 neonape config set theme_name seele
+neonape config set obsidian_vault_path ~/Documents/Obsidian
 ```
 
 Maintenance:
 
 ```bash
+neonape update
+neonape update --yes
 neonape uninstall
 neonape uninstall --purge-data --yes
 ~/.local/share/neonape/update.sh
@@ -345,6 +354,9 @@ neonape db tables
 neonape db checklist
 neonape db scans
 neonape db findings
+neonape db inventory
+neonape db reviews
+neonape db notes
 neonape db domain --target example.com
 neonape db cleanup-history
 ```
@@ -371,28 +383,36 @@ checklist: "pd_web_chain"
 ---
 ```
 
-Run it like this:
+If you save your vault path in config, this is enough:
 
 ```bash
-neonape-obsidian \
-  --vault-path "/path/to/ObsidianVault" \
+neonape obsidian \
   --target-note "Pentests/example.com/Target.md" \
   --notes-passphrase "your-passphrase"
+```
+
+You can still pass a vault path explicitly:
+
+```bash
+neonape obsidian \
+  --vault-path "/path/to/ObsidianVault" \
+  --target-note "Pentests/example.com/Target.md"
 ```
 
 Preview without writing anything:
 
 ```bash
-neonape-obsidian \
-  --vault-path "/path/to/ObsidianVault" \
+neonape obsidian \
   --target-note "Pentests/example.com/Target.md" \
   --dry-run
 ```
 
-It also works as:
+If you are already somewhere inside the vault, Neon Ape will also auto-discover the vault root by walking upward until it finds `.obsidian/`.
+
+The standalone launcher still works too:
 
 ```bash
-python -m neon_ape.obsidian_sync --vault-path "/path/to/ObsidianVault" --target-note "Pentests/example.com/Target.md"
+neonape-obsidian --target-note "Pentests/example.com/Target.md"
 ```
 
 The sync creates or updates:
@@ -407,8 +427,8 @@ The sync creates or updates:
 
 Sample inputs live under:
 
-- [Target.md](/Users/akira/work/python/docs/obsidian/Target.md)
-- [Attack-Chain.canvas](/Users/akira/work/python/docs/obsidian/Attack-Chain.canvas)
+- [Target.md](docs/obsidian/Target.md)
+- [Attack-Chain.canvas](docs/obsidian/Attack-Chain.canvas)
 
 ## Storage Behavior
 

@@ -13,10 +13,10 @@ DEFAULT_WORDLISTS = (
     "/usr/share/dirb/wordlists/common.txt",
     "/opt/homebrew/share/seclists/Discovery/Web-Content/common.txt",
     "/opt/homebrew/share/seclists/Discovery/Web-Content/raft-small-words.txt",
-    "/Users/akira/SecLists/Discovery/Web-Content/common.txt",
-    "/Users/akira/SecLists/Discovery/Web-Content/raft-small-words.txt",
-    "/Users/akira/SecLists/Discovery/Web-Content/directory-list-2.3-small.txt",
-    "/Users/akira/dirb/wordlists/common.txt",
+    "~/SecLists/Discovery/Web-Content/common.txt",
+    "~/SecLists/Discovery/Web-Content/raft-small-words.txt",
+    "~/SecLists/Discovery/Web-Content/directory-list-2.3-small.txt",
+    "~/dirb/wordlists/common.txt",
 )
 
 
@@ -75,8 +75,9 @@ def parse_gobuster_output(output_path: Path) -> list[dict[str, str]]:
 
 def _detect_wordlist() -> str | None:
     for candidate in DEFAULT_WORDLISTS:
-        if Path(candidate).exists():
-            return candidate
+        resolved = Path(candidate).expanduser()
+        if resolved.exists():
+            return str(resolved)
     return None
 
 

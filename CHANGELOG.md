@@ -2,6 +2,25 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.3.0] - 2026-03-14
+
+### Added
+
+- Config-backed Obsidian sync defaults, vault auto-discovery, and native `neonape obsidian`
+- New DB views for `inventory`, `reviews`, and `notes`
+- Interactive shell actions for config, update, and Obsidian sync
+- Built-in `neonape update` flow for install-managed copies
+
+### Changed
+
+- Obsidian dry-run mode now stays fully read-only
+- Quick-start and help output now surface Obsidian and DB review commands more clearly
+- Gobuster wordlist discovery now uses generic home-relative paths instead of user-specific paths
+
+### Fixed
+
+- Removed remaining hardcoded local path leaks from the repo-facing application code
+
 ## [0.2.0] - 2026-03-13
 
 ### Added

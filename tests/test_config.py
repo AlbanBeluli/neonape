@@ -36,6 +36,7 @@ def test_ensure_directories_creates_runtime_dirs(tmp_path) -> None:
         config_path=tmp_path / "config.toml",
         privacy_mode=True,
         theme_name="eva",
+        obsidian_vault_path=None,
     )
 
     config.ensure_directories()
@@ -55,6 +56,7 @@ install_root = "~/apps/neonape"
 bin_dir = "~/bin"
 data_dir = "~/secure/neonape"
 privacy_mode = false
+obsidian_vault_path = "~/vaults/neon"
 """.strip(),
         encoding="utf-8",
     )
@@ -68,6 +70,7 @@ privacy_mode = false
     assert config.data_dir == Path(tmp_path / "home/secure/neonape")
     assert config.privacy_mode is False
     assert config.theme_name == "eva"
+    assert config.obsidian_vault_path == Path(tmp_path / "home/vaults/neon")
 
 
 def test_save_and_update_user_config(tmp_path) -> None:
@@ -77,6 +80,8 @@ def test_save_and_update_user_config(tmp_path) -> None:
 
     update_user_config("privacy_mode", "false", config_path)
     update_user_config("theme_name", "seele", config_path)
+    update_user_config("obsidian_vault_path", "~/vault", config_path)
     loaded = load_user_config(config_path)
     assert loaded["privacy_mode"] is False
     assert loaded["theme_name"] == "seele"
+    assert loaded["obsidian_vault_path"] == "~/vault"

@@ -14,6 +14,9 @@ from neon_ape.db.repository import (
     mark_checklist_item_status,
     normalize_batch_history_labels,
     recent_findings,
+    recent_inventory,
+    recent_note_headers,
+    recent_review_findings,
     recent_scans,
     record_scan,
     review_overview,
@@ -180,6 +183,40 @@ def test_domain_overview_collects_scans_findings_and_notes() -> None:
     assert len(overview["findings"]) == 1
     assert len(overview["notes"]) == 1
     assert len(overview["inventory"]) == 1
+
+
+def test_recent_inventory_reviews_and_notes_support_filters() -> None:
+    root = Path(__file__).resolve().parents[1]
+    connection = _connection()
+    initialize_database(connection, root / "neon_ape" / "db" / "schema.sql")
+
+    record_scan(
+        connection,
+        ToolResult(tool_name="httpx", target="pd_web_chain:example.com:httpx", command=["httpx"], exit_code=0),
+        [
+            {
+                "type": "http_service",
+                "host": "https://app.example.com",
+                "key": "https://app.example.com",
+                "value": "200",
+                "product": "Apache httpd",
+                "version": "2.4.49",
+                "scheme": "https",
+                "port": "443",
+            }
+        ],
+    )
+    store_note(connection, target="example.com", title="Portal", ciphertext=b"encrypted")
+
+    inventory = recent_inventory(connection, limit=10, target="example.com")
+    reviews = recent_review_findings(connection, limit=10, target="example.com", severity="high")
+    notes = recent_note_headers(connection, limit=10, target="example.com")
+
+    assert len(inventory) == 1
+    assert inventory[0]["product"] == "Apache httpd"
+    assert len(reviews) == 1
+    assert reviews[0]["severity"] == "high"
+    assert len(notes) == 1
 
 
 def test_domain_and_review_overview_include_katana_and_gobuster_paths() -> None:

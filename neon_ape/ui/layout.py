@@ -47,5 +47,8 @@ def build_interactive_actions() -> Table:
     table.add_row("7", "Encrypted notes")
     table.add_row("8", "Review summary")
     table.add_row("9", "Refresh screen")
+    table.add_row("10", "Config")
+    table.add_row("11", "Update Neon Ape")
+    table.add_row("12", "Obsidian sync")
     table.add_row("q", "Exit")
     return table

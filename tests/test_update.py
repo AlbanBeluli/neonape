@@ -27,6 +27,7 @@ def test_update_warns_when_script_is_missing(tmp_path) -> None:
         scan_dir=tmp_path / "data" / "scans",
         privacy_mode=True,
         theme_name="eva",
+        obsidian_vault_path=None,
     )
     console = StubConsole()
 
@@ -56,6 +57,7 @@ def test_update_runs_script_when_present(tmp_path, monkeypatch) -> None:
         scan_dir=tmp_path / "data" / "scans",
         privacy_mode=True,
         theme_name="eva",
+        obsidian_vault_path=None,
     )
     console = StubConsole()
 

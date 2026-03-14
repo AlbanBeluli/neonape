@@ -2,14 +2,17 @@ from __future__ import annotations
 
 from getpass import getpass
 from pathlib import Path
+from types import SimpleNamespace
 
 from rich.console import Console
 from rich.panel import Panel
 from rich.prompt import Prompt
 
+from neon_ape.commands.config import run_config_command
 from neon_ape.commands.db import run_db_view
 from neon_ape.commands.notes import run_add_note, run_list_notes, run_view_note
 from neon_ape.commands.review import run_review
+from neon_ape.commands.update import run_update
 from neon_ape.commands.tools import (
     run_chained_recon_workflow,
     run_checklist_step,
@@ -19,6 +22,7 @@ from neon_ape.commands.tools import (
 )
 from neon_ape.commands.transfer import run_export
 from neon_ape.db.repository import checklist_summary, list_checklist_items, list_note_headers, recent_scans
+from neon_ape.obsidian_sync import run_sync as run_obsidian_sync
 from neon_ape.ui.layout import build_checklist_table, build_interactive_actions, build_main_menu
 from neon_ape.ui.views import build_landing_panel, build_missing_tools_panel, build_quickstart_table, build_scans_table, build_status_table, build_welcome_panel
 from neon_ape.ui.theme import section_style
@@ -52,7 +56,7 @@ def run_interactive_shell(
 
         choice = Prompt.ask(
             "[bold cyan]Select action[/bold cyan]",
-            choices=["1", "2", "3", "4", "5", "6", "7", "8", "9", "q"],
+            choices=["1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "q"],
             default="1",
         )
         if choice == "1":
@@ -84,6 +88,15 @@ def run_interactive_shell(
             continue
         if choice == "9":
             last_summary = "Screen refreshed."
+            continue
+        if choice == "10":
+            last_summary = _prompt_config(console, config)
+            continue
+        if choice == "11":
+            last_summary = _prompt_update(console, config)
+            continue
+        if choice == "12":
+            last_summary = _prompt_obsidian_sync(console, config)
             continue
         console.print("[bold green]Session closed.[/bold green]")
         return
@@ -221,18 +234,29 @@ def _prompt_db_view(
 ) -> None:
     view = Prompt.ask(
         "[bold cyan]DB view[/bold cyan]",
-        choices=["tables", "checklist", "scans", "findings", "domain", "b"],
+        choices=["tables", "checklist", "scans", "findings", "inventory", "reviews", "notes", "domain", "b"],
         default="scans",
     )
     if view == "b":
         return
     limit = 20
     domain_target = None
+    severity = None
     if view == "domain":
         domain_target = _ask_text(console, "Domain or target")
         if domain_target is None:
             return
-    if view in {"scans", "findings", "domain"}:
+    if view in {"inventory", "reviews", "notes"}:
+        domain_target = _ask_text(console, "Filter target", default="")
+        if domain_target is None:
+            return
+        domain_target = domain_target or None
+    if view == "reviews":
+        severity = _ask_text(console, "Severity", default="")
+        if severity is None:
+            return
+        severity = severity or None
+    if view in {"scans", "findings", "inventory", "reviews", "notes", "domain"}:
         limit_value = _ask_text(console, "Limit", default="20")
         if limit_value is None:
             return
@@ -248,6 +272,7 @@ def _prompt_db_view(
         view,
         checklist_items,
         limit=limit,
+        finding_type=severity,
         domain_target=domain_target,
         show_targets=show_targets,
     )
@@ -342,6 +367,66 @@ def _prompt_review(console: Console, connection) -> str:
     run_review(console, connection, target=target, limit=limit)
     _pause(console)
     return f"Reviewed {target}."
+
+
+def _prompt_config(console: Console, config) -> str:
+    action = Prompt.ask("[bold cyan]Config[/bold cyan]", choices=["show", "init", "set", "b"], default="show")
+    if action == "b":
+        return "Returned from config menu."
+    if action in {"show", "init"}:
+        run_config_command(console, config, action=action)
+        _pause(console)
+        return f"Config {action} completed."
+    key = _ask_text(console, "Config key")
+    if key is None:
+        return "Returned from config menu."
+    value = _ask_text(console, "Config value")
+    if value is None:
+        return "Returned from config menu."
+    run_config_command(console, config, action="set", key=key, value=value)
+    _pause(console)
+    return f"Updated config key `{key}`."
+
+
+def _prompt_update(console: Console, config) -> str:
+    action = Prompt.ask("[bold cyan]Update Neon Ape now?[/bold cyan]", choices=["y", "n"], default="n")
+    if action != "y":
+        return "Update cancelled."
+    run_update(console, config, assume_yes=True)
+    _pause(console)
+    return "Triggered install-managed update."
+
+
+def _prompt_obsidian_sync(console: Console, config) -> str:
+    target_note = _ask_text(console, "Target note", default="Pentests/example.com/Target.md")
+    if target_note is None:
+        return "Returned from Obsidian sync."
+    vault_path = _ask_text(
+        console,
+        "Vault path",
+        default=str(config.obsidian_vault_path) if config.obsidian_vault_path else "",
+    )
+    if vault_path is None:
+        return "Returned from Obsidian sync."
+    dry_run = Prompt.ask("[bold cyan]Dry run[/bold cyan]", choices=["y", "n"], default="y") == "y"
+    skip_run = Prompt.ask("[bold cyan]Skip workflow run[/bold cyan]", choices=["y", "n"], default="n") == "y"
+    open_note = False
+    if not dry_run:
+        open_note = Prompt.ask("[bold cyan]Open note in Obsidian[/bold cyan]", choices=["y", "n"], default="n") == "y"
+    status = run_obsidian_sync(
+        SimpleNamespace(
+            vault_path=vault_path or None,
+            target_note=target_note,
+            notes_passphrase=None,
+            limit=200,
+            open=open_note,
+            dry_run=dry_run,
+            skip_run=skip_run,
+        ),
+        console=console,
+    )
+    _pause(console)
+    return f"Obsidian sync {'completed' if status == 0 else 'failed'} for `{target_note}`."
 
 
 def _pause(console: Console) -> None:

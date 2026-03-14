@@ -7,6 +7,7 @@ import os
 from pathlib import Path
 import shutil
 import subprocess
+from types import SimpleNamespace
 from typing import Any
 
 from cryptography.fernet import InvalidToken
@@ -42,10 +43,10 @@ MAX_OVERVIEW_BYTES = 5_000_000
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        prog="python -m neon_ape.obsidian_sync",
+        prog="neonape-obsidian",
         description="Sync Neon Ape workflow outputs into an Obsidian vault.",
     )
-    parser.add_argument("--vault-path", required=True, help="Absolute path to the Obsidian vault root.")
+    parser.add_argument("--vault-path", help="Absolute path to the Obsidian vault root. Defaults to config or current Obsidian vault.")
     parser.add_argument(
         "--target-note",
         required=True,
@@ -71,25 +72,41 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Preview generated paths and content without writing into the vault or opening Obsidian.",
     )
+    parser.add_argument(
+        "--skip-run",
+        action="store_true",
+        help="Skip running a Neon Ape workflow and only export already stored local data.",
+    )
     return parser
 
 
 def main() -> int:
     args = build_parser().parse_args()
-    console = Console()
-    vault_path = Path(args.vault_path).expanduser().resolve()
-    target_note = vault_path / args.target_note
+    return run_sync(args)
+
+
+def run_sync(args: argparse.Namespace | SimpleNamespace, console: Console | None = None) -> int:
+    active_console = console or Console()
+    config = AppConfig.default()
+    vault_path = resolve_vault_path(getattr(args, "vault_path", None), config)
+    if vault_path is None:
+        active_console.print(
+            "[bold red]Unable to determine the Obsidian vault path.[/bold red] "
+            "Use `--vault-path`, set `obsidian_vault_path` with `neonape config set`, or run from inside a vault."
+        )
+        return 1
+    target_note = vault_path / str(getattr(args, "target_note"))
 
     if not vault_path.exists():
-        console.print(f"[bold red]Vault path does not exist:[/bold red] {vault_path}")
+        active_console.print(f"[bold red]Vault path does not exist:[/bold red] {vault_path}")
         return 1
     if not target_note.exists():
-        console.print(f"[bold red]Target note does not exist:[/bold red] {target_note}")
+        active_console.print(f"[bold red]Target note does not exist:[/bold red] {target_note}")
         return 1
 
     obsidian_path = shutil.which("obsidian")
     if not obsidian_path:
-        console.print(
+        active_console.print(
             Panel.fit(
                 "Obsidian CLI was not found on PATH.\n"
                 "The sync can still write Markdown, Canvas, and scan artifacts into the vault.\n"
@@ -102,55 +119,54 @@ def main() -> int:
     try:
         frontmatter, body = parse_frontmatter(target_note.read_text(encoding="utf-8"))
     except ValueError as exc:
-        console.print(f"[bold red]{exc}[/bold red]")
+        active_console.print(f"[bold red]{exc}[/bold red]")
         return 1
 
     target = str(frontmatter.get("target", "")).strip()
     checklist = str(frontmatter.get("checklist", "pd_web_chain")).strip() or "pd_web_chain"
     scope = str(frontmatter.get("scope", "unspecified")).strip() or "unspecified"
     if not target:
-        console.print("[bold red]Frontmatter is missing required `target`.[/bold red]")
+        active_console.print("[bold red]Frontmatter is missing required `target`.[/bold red]")
         return 1
-
-    template_path = vault_path / "Pentests" / "Templates" / "Pentest-Target.md"
-    ensure_template(template_path)
 
     target_dir = vault_path / "Pentests" / sanitize_target_name(target)
     scans_dir = target_dir / "Scans"
     screenshots_dir = target_dir / "Screenshots"
-    for path in (target_dir, scans_dir, screenshots_dir):
-        path.mkdir(parents=True, exist_ok=True)
+    if not getattr(args, "dry_run", False):
+        template_path = vault_path / "Pentests" / "Templates" / "Pentest-Target.md"
+        ensure_template(template_path)
+        for path in (target_dir, scans_dir, screenshots_dir):
+            path.mkdir(parents=True, exist_ok=True)
 
     target_markdown = build_target_index(frontmatter, body)
 
-    if not args.dry_run:
+    if not getattr(args, "dry_run", False):
         write_target_index(target_dir / "Target.md", frontmatter, body)
 
     try:
-        if not args.dry_run:
-            run_workflow(console, checklist=checklist, target=target)
+        if not getattr(args, "dry_run", False) and not getattr(args, "skip_run", False):
+            run_workflow(active_console, checklist=checklist, target=target)
     except RuntimeError as exc:
-        console.print(f"[bold red]{exc}[/bold red]")
+        active_console.print(f"[bold red]{exc}[/bold red]")
         return 1
-    overview = fetch_domain_overview(console, target=target, limit=args.limit)
+    overview = fetch_domain_overview(active_console, target=target, limit=int(getattr(args, "limit", 200)))
     if overview is None:
         return 1
 
-    config = AppConfig.default()
     notes = decrypt_notes_for_target(
         config.db_path,
         target=target,
-        passphrase=args.notes_passphrase,
+        passphrase=getattr(args, "notes_passphrase", None),
     )
-    copied_artifacts = [] if args.dry_run else copy_scan_artifacts(overview.get("scans", []), scans_dir)
+    copied_artifacts = [] if getattr(args, "dry_run", False) else copy_scan_artifacts(overview.get("scans", []), scans_dir)
 
     findings_md = render_findings_markdown(target, scope, checklist, overview)
     notes_md = render_notes_markdown(target, notes, overview.get("notes", []), bool(args.notes_passphrase))
     canvas = build_attack_canvas(target, overview)
 
-    if args.dry_run:
-        console.print(build_summary_table(target, checklist, scope, target_dir, preview_scan_artifacts(overview.get("scans", [])), notes, dry_run=True))
-        console.print(
+    if getattr(args, "dry_run", False):
+        active_console.print(build_summary_table(target, checklist, scope, target_dir, preview_scan_artifacts(overview.get("scans", [])), notes, dry_run=True))
+        active_console.print(
             Panel.fit(
                 f"[bold]Would write:[/bold]\n"
                 f"- {target_dir / 'Target.md'}\n"
@@ -170,9 +186,9 @@ def main() -> int:
     (target_dir / "Notes.md").write_text(notes_md, encoding="utf-8")
     (target_dir / "Attack-Chain.canvas").write_text(json.dumps(canvas, indent=2), encoding="utf-8")
 
-    console.print(build_summary_table(target, checklist, scope, target_dir, copied_artifacts, notes, dry_run=False))
-    if args.open:
-        open_in_obsidian(console, obsidian_path, target_dir / "Target.md")
+    active_console.print(build_summary_table(target, checklist, scope, target_dir, copied_artifacts, notes, dry_run=False))
+    if getattr(args, "open", False):
+        open_in_obsidian(active_console, obsidian_path, target_dir / "Target.md")
     return 0
 
 
@@ -188,6 +204,18 @@ def parse_frontmatter(markdown: str) -> tuple[dict[str, Any], str]:
     if not isinstance(data, dict):
         raise ValueError("YAML frontmatter must be a key/value mapping.")
     return data, body
+
+
+def resolve_vault_path(cli_value: str | None, config: AppConfig) -> Path | None:
+    if cli_value:
+        return Path(cli_value).expanduser().resolve()
+    if config.obsidian_vault_path:
+        return config.obsidian_vault_path.expanduser().resolve()
+    current = Path.cwd().resolve()
+    for candidate in (current, *current.parents):
+        if (candidate / ".obsidian").exists():
+            return candidate
+    return None
 
 
 def ensure_template(template_path: Path) -> None:

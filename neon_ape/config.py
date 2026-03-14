@@ -47,6 +47,7 @@ class AppConfig:
     scan_dir: Path
     privacy_mode: bool
     theme_name: str
+    obsidian_vault_path: Path | None
 
     @classmethod
     def default(cls) -> "AppConfig":
@@ -59,6 +60,8 @@ class AppConfig:
         data_dir = Path(os.environ.get("NEONAPE_DATA_DIR", file_config.get("data_dir", "~/.neon_ape"))).expanduser()
         privacy_mode = _as_bool(file_config.get("privacy_mode", True))
         theme_name = str(file_config.get("theme_name", "eva")).strip() or "eva"
+        obsidian_vault_raw = str(file_config.get("obsidian_vault_path", "")).strip()
+        obsidian_vault_path = Path(obsidian_vault_raw).expanduser() if obsidian_vault_raw else None
         return cls(
             app_name="Neon Ape",
             config_path=config_path,
@@ -73,6 +76,7 @@ class AppConfig:
             scan_dir=data_dir / "scans",
             privacy_mode=privacy_mode,
             theme_name=theme_name,
+            obsidian_vault_path=obsidian_vault_path,
         )
 
     def ensure_directories(self) -> None:

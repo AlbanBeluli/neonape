@@ -218,7 +218,11 @@ def build_quickstart_table() -> Table:
     table.add_row("Run JS-heavy chain", "neonape --workflow js_web_chain --target example.com")
     table.add_row("Inspect scans", "neonape db scans")
     table.add_row("Inspect findings", "neonape db findings")
+    table.add_row("Inspect inventory", "neonape db inventory")
     table.add_row("Review a target", "neonape review --target example.com")
+    table.add_row("Sync to Obsidian", "neonape obsidian --target-note Pentests/example.com/Target.md --dry-run")
+    table.add_row("Show config", "neonape config show")
+    table.add_row("Update install", "neonape update")
     table.add_row("Show targets", "neonape --show-targets")
     table.add_row("Uninstall", "neonape uninstall")
     return table

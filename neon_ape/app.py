@@ -1,5 +1,6 @@
 from pathlib import Path
 from getpass import getpass
+from types import SimpleNamespace
 from rich.panel import Panel
 from rich.console import Console
 
@@ -20,6 +21,7 @@ from neon_ape.commands.interactive import run_interactive_shell
 from neon_ape.commands.tools import run_chained_recon_workflow, run_checklist_step, run_gobuster, run_nmap, run_projectdiscovery_tool
 from neon_ape.commands.transfer import run_export, run_import
 from neon_ape.commands.uninstall import run_uninstall
+from neon_ape.obsidian_sync import run_sync as run_obsidian_sync
 from neon_ape.services.logging_utils import configure_logger
 from neon_ape.services.storage import connect
 from neon_ape.ui.ascii import EVA_BANNER
@@ -61,6 +63,13 @@ class NeonApeApp:
         self.uninstall_yes = False
         self.uninstall_purge_data = False
         self.update_yes = False
+        self.obsidian_vault_path: str | None = None
+        self.obsidian_target_note: str | None = None
+        self.obsidian_notes_passphrase: str | None = None
+        self.obsidian_limit = 200
+        self.obsidian_open = False
+        self.obsidian_dry_run = False
+        self.obsidian_skip_run = False
         self.target: str | None = None
         self.profile = "service_scan"
         self.run_nmap = False
@@ -97,6 +106,23 @@ class NeonApeApp:
                 key=self.config_key,
                 value=self.config_value,
             )
+            return
+
+        if self.command == "obsidian":
+            status = run_obsidian_sync(
+                SimpleNamespace(
+                    vault_path=self.obsidian_vault_path,
+                    target_note=self.obsidian_target_note,
+                    notes_passphrase=self.obsidian_notes_passphrase,
+                    limit=self.obsidian_limit,
+                    open=self.obsidian_open,
+                    dry_run=self.obsidian_dry_run,
+                    skip_run=self.obsidian_skip_run,
+                ),
+                console=self.console,
+            )
+            if status != 0:
+                raise SystemExit(status)
             return
 
         self.config.ensure_directories()

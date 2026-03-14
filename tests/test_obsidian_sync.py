@@ -1,5 +1,6 @@
 from pathlib import Path
 
+from neon_ape.config import AppConfig
 from neon_ape.obsidian_sync import (
     build_attack_canvas,
     build_target_index,
@@ -7,6 +8,7 @@ from neon_ape.obsidian_sync import (
     preview_scan_artifacts,
     render_findings_markdown,
     render_markdown_table,
+    resolve_vault_path,
     sanitize_target_name,
 )
 
@@ -89,3 +91,52 @@ def test_preview_scan_artifacts_returns_unique_names() -> None:
         ]
     )
     assert artifacts == ["httpx_example.jsonl", "nuclei_example.jsonl"]
+
+
+def test_resolve_vault_path_uses_config_value(tmp_path, monkeypatch) -> None:
+    vault = tmp_path / "vault"
+    vault.mkdir()
+    config = AppConfig(
+        app_name="Neon Ape",
+        config_path=tmp_path / "config.toml",
+        install_root=tmp_path / "install",
+        bin_dir=tmp_path / "bin",
+        launcher_path=tmp_path / "bin" / "neonape",
+        data_dir=tmp_path / "data",
+        db_path=tmp_path / "data" / "neon_ape.db",
+        log_path=tmp_path / "data" / "neon_ape.log",
+        checklist_path=tmp_path / "seed.json",
+        schema_path=tmp_path / "schema.sql",
+        scan_dir=tmp_path / "data" / "scans",
+        privacy_mode=True,
+        theme_name="eva",
+        obsidian_vault_path=vault,
+    )
+
+    assert resolve_vault_path(None, config) == vault.resolve()
+
+
+def test_resolve_vault_path_discovers_current_vault(tmp_path, monkeypatch) -> None:
+    vault = tmp_path / "vault"
+    project = vault / "Pentests" / "example.com"
+    (vault / ".obsidian").mkdir(parents=True)
+    project.mkdir(parents=True)
+    monkeypatch.chdir(project)
+    config = AppConfig(
+        app_name="Neon Ape",
+        config_path=tmp_path / "config.toml",
+        install_root=tmp_path / "install",
+        bin_dir=tmp_path / "bin",
+        launcher_path=tmp_path / "bin" / "neonape",
+        data_dir=tmp_path / "data",
+        db_path=tmp_path / "data" / "neon_ape.db",
+        log_path=tmp_path / "data" / "neon_ape.log",
+        checklist_path=tmp_path / "seed.json",
+        schema_path=tmp_path / "schema.sql",
+        scan_dir=tmp_path / "data" / "scans",
+        privacy_mode=True,
+        theme_name="eva",
+        obsidian_vault_path=None,
+    )
+
+    assert resolve_vault_path(None, config) == vault.resolve()

@@ -92,6 +92,34 @@ def test_parse_db_domain_view() -> None:
     assert args.limit == 10
 
 
+def test_parse_db_inventory_view() -> None:
+    parser = build_parser()
+    args = parser.parse_args(["db", "inventory", "--target", "example.com", "--limit", "10", "--json"])
+    assert args.command == "db"
+    assert args.db_command == "inventory"
+    assert args.domain_target == "example.com"
+    assert args.limit == 10
+    assert args.json is True
+
+
+def test_parse_db_reviews_view() -> None:
+    parser = build_parser()
+    args = parser.parse_args(["db", "reviews", "--target", "example.com", "--severity", "high"])
+    assert args.command == "db"
+    assert args.db_command == "reviews"
+    assert args.domain_target == "example.com"
+    assert args.finding_type == "high"
+
+
+def test_parse_obsidian_command() -> None:
+    parser = build_parser()
+    args = parser.parse_args(["obsidian", "--target-note", "Pentests/example.com/Target.md", "--dry-run", "--skip-run"])
+    assert args.command == "obsidian"
+    assert args.target_note == "Pentests/example.com/Target.md"
+    assert args.dry_run is True
+    assert args.skip_run is True
+
+
 def test_parse_review_command() -> None:
     parser = build_parser()
     args = parser.parse_args(["review", "--target", "example.com", "--limit", "25", "--json"])

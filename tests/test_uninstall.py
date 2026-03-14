@@ -29,6 +29,7 @@ def test_uninstall_removes_install_root_launcher_and_data(tmp_path) -> None:
         scan_dir=data_dir / "scans",
         privacy_mode=True,
         theme_name="eva",
+        obsidian_vault_path=None,
     )
     app = NeonApeApp(config=config)
     app.command = "uninstall"

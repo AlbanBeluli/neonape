@@ -267,6 +267,73 @@ def recent_findings(
     return [dict(row) for row in rows]
 
 
+def recent_inventory(
+    connection: sqlite3.Connection,
+    limit: int = 50,
+    target: str | None = None,
+) -> list[dict[str, str | int | None]]:
+    query = """
+        SELECT id, scan_run_id, host, port, protocol, service_name, product, version, source_tool
+        FROM service_inventory
+    """
+    params: list[str | int] = []
+    if target:
+        pattern = f"%{target}%"
+        query += " WHERE host LIKE ? OR COALESCE(product, '') LIKE ? OR COALESCE(version, '') LIKE ?"
+        params.extend([pattern, pattern, pattern])
+    query += " ORDER BY id DESC LIMIT ?"
+    params.append(limit)
+    rows = connection.execute(query, tuple(params)).fetchall()
+    return _dedupe_inventory_rows([dict(row) for row in rows])
+
+
+def recent_review_findings(
+    connection: sqlite3.Connection,
+    limit: int = 50,
+    target: str | None = None,
+    severity: str | None = None,
+) -> list[dict[str, str | int | None]]:
+    query = """
+        SELECT id, scan_run_id, host, source_tool, finding_key, title, severity, confidence, recommendation
+        FROM review_findings
+    """
+    params: list[str | int] = []
+    filters: list[str] = []
+    if target:
+        pattern = f"%{target}%"
+        filters.append("(host LIKE ? OR title LIKE ? OR recommendation LIKE ?)")
+        params.extend([pattern, pattern, pattern])
+    if severity:
+        filters.append("severity = ?")
+        params.append(severity.lower())
+    if filters:
+        query += " WHERE " + " AND ".join(filters)
+    query += " ORDER BY id DESC LIMIT ?"
+    params.append(limit)
+    rows = connection.execute(query, tuple(params)).fetchall()
+    return _dedupe_review_rows([dict(row) for row in rows])
+
+
+def recent_note_headers(
+    connection: sqlite3.Connection,
+    limit: int = 50,
+    target: str | None = None,
+) -> list[dict[str, str | int | None]]:
+    query = """
+        SELECT id, target, title, created_at, updated_at
+        FROM notes
+    """
+    params: list[str | int] = []
+    if target:
+        pattern = f"%{target}%"
+        query += " WHERE COALESCE(target, '') LIKE ? OR title LIKE ?"
+        params.extend([pattern, pattern])
+    query += " ORDER BY updated_at DESC, id DESC LIMIT ?"
+    params.append(limit)
+    rows = connection.execute(query, tuple(params)).fetchall()
+    return [dict(row) for row in rows]
+
+
 def domain_overview(
     connection: sqlite3.Connection,
     target: str,

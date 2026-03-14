@@ -39,6 +39,9 @@ def build_parser() -> argparse.ArgumentParser:
             "  neonape db checklist\n"
             "  neonape db scans\n"
             "  neonape db findings\n"
+            "  neonape db inventory\n"
+            "  neonape db reviews\n"
+            "  neonape db notes\n"
             "  neonape db domain --target example.com\n"
             "  neonape db cleanup-history\n\n"
             "Review:\n"
@@ -52,7 +55,11 @@ def build_parser() -> argparse.ArgumentParser:
             "  neonape config show\n"
             "  neonape config init\n"
             "  neonape config set privacy_mode false\n"
-            "  neonape config set theme_name eva\n\n"
+            "  neonape config set theme_name eva\n"
+            "  neonape config set obsidian_vault_path ~/Documents/Obsidian\n\n"
+            "Obsidian:\n"
+            "  neonape obsidian --target-note Pentests/example.com/Target.md\n"
+            "  neonape obsidian --target-note Pentests/example.com/Target.md --dry-run\n\n"
             "Transfer:\n"
             "  neonape export scans --output scans.json\n"
             "  neonape export findings --format csv --output findings.csv\n"
@@ -94,6 +101,14 @@ def build_parser() -> argparse.ArgumentParser:
     config_set = config_subparsers.add_parser("set", help="Set a config key in ~/.config/neonape/config.toml.")
     config_set.add_argument("key", help="Config key to change.")
     config_set.add_argument("value", help="New value for the config key.")
+    obsidian_parser = subparsers.add_parser("obsidian", help="Sync Neon Ape data into an Obsidian vault.")
+    obsidian_parser.add_argument("--vault-path", help="Absolute path to the vault root. Falls back to config or current vault.")
+    obsidian_parser.add_argument("--target-note", required=True, help="Path to the source Markdown note relative to the vault.")
+    obsidian_parser.add_argument("--notes-passphrase", help="Optional passphrase used to decrypt Neon Ape notes.")
+    obsidian_parser.add_argument("--limit", type=int, default=200, help="Maximum number of rows to pull from the Neon Ape domain view.")
+    obsidian_parser.add_argument("--open", action="store_true", help="Try to open the synced target note in Obsidian.")
+    obsidian_parser.add_argument("--dry-run", action="store_true", help="Preview generated paths and content without writing.")
+    obsidian_parser.add_argument("--skip-run", action="store_true", help="Skip running a new workflow and only export local data.")
 
     review_parser = subparsers.add_parser("review", help="Show normalized service inventory and local review matches for a target.")
     review_parser.add_argument("--target", required=True, help="Domain, host, or target string to review.")
@@ -113,6 +128,19 @@ def build_parser() -> argparse.ArgumentParser:
     db_findings_parser.add_argument("--limit", type=int, default=50, help="Maximum number of finding rows to show.")
     db_findings_parser.add_argument("--type", dest="finding_type", help="Filter findings by finding type.")
     db_findings_parser.add_argument("--json", action="store_true", help="Emit JSON instead of a Rich table.")
+    db_inventory_parser = db_subparsers.add_parser("inventory", help="Show normalized service inventory entries.")
+    db_inventory_parser.add_argument("--limit", type=int, default=50, help="Maximum number of inventory rows to show.")
+    db_inventory_parser.add_argument("--target", dest="domain_target", help="Optional host or target filter.")
+    db_inventory_parser.add_argument("--json", action="store_true", help="Emit JSON instead of a Rich table.")
+    db_reviews_parser = db_subparsers.add_parser("reviews", help="Show normalized review matches.")
+    db_reviews_parser.add_argument("--limit", type=int, default=50, help="Maximum number of review rows to show.")
+    db_reviews_parser.add_argument("--target", dest="domain_target", help="Optional host or target filter.")
+    db_reviews_parser.add_argument("--severity", dest="finding_type", choices=("medium", "high", "critical"), help="Optional severity filter.")
+    db_reviews_parser.add_argument("--json", action="store_true", help="Emit JSON instead of a Rich table.")
+    db_notes_parser = db_subparsers.add_parser("notes", help="Show encrypted note headers.")
+    db_notes_parser.add_argument("--limit", type=int, default=50, help="Maximum number of note rows to show.")
+    db_notes_parser.add_argument("--target", dest="domain_target", help="Optional target or title filter.")
+    db_notes_parser.add_argument("--json", action="store_true", help="Emit JSON instead of a Rich table.")
     db_domain_parser = db_subparsers.add_parser("domain", help="Show stored scans, findings, and notes that match a domain or target string.")
     db_domain_parser.add_argument("--target", dest="domain_target", required=True, help="Domain or target string to search for.")
     db_domain_parser.add_argument("--limit", type=int, default=50, help="Maximum number of rows per section to show.")
@@ -234,6 +262,13 @@ def main() -> int:
     app.uninstall_yes = getattr(args, "yes", False)
     app.uninstall_purge_data = getattr(args, "purge_data", False)
     app.update_yes = getattr(args, "yes", False) if args.command == "update" else False
+    app.obsidian_vault_path = getattr(args, "vault_path", None)
+    app.obsidian_target_note = getattr(args, "target_note", None)
+    app.obsidian_notes_passphrase = getattr(args, "notes_passphrase", None)
+    app.obsidian_limit = getattr(args, "limit", 200) if args.command == "obsidian" else 200
+    app.obsidian_open = getattr(args, "open", False) if args.command == "obsidian" else False
+    app.obsidian_dry_run = getattr(args, "dry_run", False) if args.command == "obsidian" else False
+    app.obsidian_skip_run = getattr(args, "skip_run", False) if args.command == "obsidian" else False
     app.target = args.target
     app.profile = args.profile
     app.run_nmap = args.run_nmap

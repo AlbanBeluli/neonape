@@ -5,7 +5,16 @@ from pathlib import Path
 
 from rich.console import Console
 
-from neon_ape.db.repository import domain_overview, list_tables, normalize_batch_history_labels, recent_findings, recent_scans
+from neon_ape.db.repository import (
+    domain_overview,
+    list_tables,
+    normalize_batch_history_labels,
+    recent_findings,
+    recent_inventory,
+    recent_note_headers,
+    recent_review_findings,
+    recent_scans,
+)
 from neon_ape.ui.layout import build_checklist_table
 from neon_ape.ui.views import (
     build_domain_summary_panel,
@@ -48,6 +57,18 @@ def run_db_view(
     if db_command == "findings":
         findings = recent_findings(connection, limit=limit, finding_type=finding_type)
         _emit(console, findings, build_recent_findings_table(findings), as_json=as_json)
+        return
+    if db_command == "inventory":
+        inventory = recent_inventory(connection, limit=limit, target=domain_target)
+        _emit(console, inventory, build_inventory_table(inventory), as_json=as_json)
+        return
+    if db_command == "reviews":
+        reviews = recent_review_findings(connection, limit=limit, target=domain_target, severity=finding_type)
+        _emit(console, reviews, build_review_findings_table(reviews), as_json=as_json)
+        return
+    if db_command == "notes":
+        notes = recent_note_headers(connection, limit=limit, target=domain_target)
+        _emit(console, notes, build_notes_table(notes), as_json=as_json)
         return
     if db_command == "domain":
         if not domain_target:
