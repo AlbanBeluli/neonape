@@ -22,7 +22,7 @@ from neon_ape.commands.tools import (
 )
 from neon_ape.commands.transfer import run_export
 from neon_ape.db.repository import checklist_summary, list_checklist_items, list_note_headers, recent_scans
-from neon_ape.obsidian_sync import run_sync as run_obsidian_sync
+from neon_ape.obsidian_sync import resolve_vault_path, run_sync as run_obsidian_sync
 from neon_ape.ui.layout import build_checklist_table, build_interactive_actions, build_main_menu
 from neon_ape.ui.views import build_landing_panel, build_missing_tools_panel, build_quickstart_table, build_scans_table, build_status_table, build_welcome_panel
 from neon_ape.ui.theme import section_style
@@ -408,6 +408,21 @@ def _prompt_obsidian_sync(console: Console, config) -> str:
     )
     if vault_path is None:
         return "Returned from Obsidian sync."
+    resolved_vault = resolve_vault_path(vault_path or None, config)
+    if resolved_vault is None:
+        console.print(
+            Panel.fit(
+                "No Obsidian vault could be resolved.\n\n"
+                "Set one once with:\n"
+                "`neonape config set obsidian_vault_path ~/Documents/Obsidian`\n\n"
+                "or rerun this action and enter the vault path directly,\n"
+                "or launch Neon Ape from inside an existing Obsidian vault.",
+                title="Obsidian Vault Needed",
+                style=section_style("orange"),
+            )
+        )
+        _pause(console)
+        return "Obsidian sync needs a configured or discoverable vault path."
     dry_run = Prompt.ask("[bold cyan]Dry run[/bold cyan]", choices=["y", "n"], default="y") == "y"
     skip_run = Prompt.ask("[bold cyan]Skip workflow run[/bold cyan]", choices=["y", "n"], default="n") == "y"
     open_note = False
