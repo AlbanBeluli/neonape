@@ -174,6 +174,14 @@ curl -fsSL https://raw.githubusercontent.com/AlbanBeluli/neonape/main/install.sh
 neonape
 ```
 
+Tool bootstrap:
+
+```bash
+bash install_recon_tools.sh
+```
+
+The helper script detects `apt-get`, `pacman`, or `brew`, installs the common base packages it can manage directly, and then prints follow-up guidance for ProjectDiscovery tools.
+
 What the installer does:
 
 - creates a private virtual environment under `~/.local/share/neonape/venv`
@@ -204,9 +212,19 @@ Example config:
 ```toml
 [neonape]
 privacy_mode = true
+theme_name = "eva"
 data_dir = "~/.neon_ape"
 install_root = "~/.local/share/neonape"
 bin_dir = "~/.local/bin"
+```
+
+Built-in config commands:
+
+```bash
+neonape config show
+neonape config init
+neonape config set privacy_mode false
+neonape config set theme_name seele
 ```
 
 Maintenance:
@@ -355,6 +373,15 @@ neonape-obsidian \
   --notes-passphrase "your-passphrase"
 ```
 
+Preview without writing anything:
+
+```bash
+neonape-obsidian \
+  --vault-path "/path/to/ObsidianVault" \
+  --target-note "Pentests/example.com/Target.md" \
+  --dry-run
+```
+
 It also works as:
 
 ```bash
@@ -370,6 +397,11 @@ The sync creates or updates:
 - `Pentests/<target>/Screenshots/`
 - `Pentests/<target>/Attack-Chain.canvas`
 - `Pentests/Templates/Pentest-Target.md`
+
+Sample inputs live under:
+
+- [Target.md](/Users/akira/work/python/docs/obsidian/Target.md)
+- [Attack-Chain.canvas](/Users/akira/work/python/docs/obsidian/Attack-Chain.canvas)
 
 ## Storage Behavior
 

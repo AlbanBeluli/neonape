@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from neon_ape.config import AppConfig
+from neon_ape.config import AppConfig, load_user_config, save_user_config, update_user_config
 
 
 def test_default_config_uses_home_and_env(monkeypatch) -> None:
@@ -35,6 +35,7 @@ def test_ensure_directories_creates_runtime_dirs(tmp_path) -> None:
         scan_dir=tmp_path / "data" / "scans",
         config_path=tmp_path / "config.toml",
         privacy_mode=True,
+        theme_name="eva",
     )
 
     config.ensure_directories()
@@ -66,3 +67,16 @@ privacy_mode = false
     assert config.bin_dir == Path(tmp_path / "home/bin")
     assert config.data_dir == Path(tmp_path / "home/secure/neonape")
     assert config.privacy_mode is False
+    assert config.theme_name == "eva"
+
+
+def test_save_and_update_user_config(tmp_path) -> None:
+    config_path = tmp_path / "config.toml"
+    save_user_config({"privacy_mode": True, "theme_name": "eva"}, config_path)
+    assert load_user_config(config_path)["privacy_mode"] is True
+
+    update_user_config("privacy_mode", "false", config_path)
+    update_user_config("theme_name", "seele", config_path)
+    loaded = load_user_config(config_path)
+    assert loaded["privacy_mode"] is False
+    assert loaded["theme_name"] == "seele"

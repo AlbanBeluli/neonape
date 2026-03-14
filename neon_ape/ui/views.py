@@ -5,6 +5,7 @@ from pathlib import Path
 from rich.panel import Panel
 from rich.table import Table
 
+from neon_ape.config import detect_package_manager
 from neon_ape.ui.theme import section_style
 
 
@@ -57,9 +58,17 @@ def build_missing_tools_panel(tools: list[str]) -> Panel:
     }
     unique_tools = list(dict.fromkeys(tools))
     hint_lines = "\n".join(f"- {hints.get(tool, f'Install {tool} and ensure it is on PATH.')}" for tool in unique_tools)
+    package_manager = detect_package_manager()
+    installer_hint = (
+        f"Detected package manager: {package_manager}\n"
+        "Run `bash install_recon_tools.sh` from the repo root for a guided setup pass."
+        if package_manager
+        else "Run `bash install_recon_tools.sh` from the repo root for guided package-manager detection."
+    )
     body = (
         f"[bold red]Missing tools:[/bold red] {', '.join(unique_tools)}\n"
         f"{hint_lines}\n"
+        f"{installer_hint}\n"
         "Neon Ape will stay local-only and keep the workflow ready once they are available."
     )
     return Panel.fit(body, title="AT Field Warning", style="bold red")

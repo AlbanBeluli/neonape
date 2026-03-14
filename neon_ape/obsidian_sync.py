@@ -37,6 +37,8 @@ checklist: "pd_web_chain"
 ## Follow-Up
 """
 
+MAX_OVERVIEW_BYTES = 5_000_000
+
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
@@ -63,6 +65,11 @@ def build_parser() -> argparse.ArgumentParser:
         "--open",
         action="store_true",
         help="Try to open the synced target note in Obsidian after writing files.",
+    )
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Preview generated paths and content without writing into the vault or opening Obsidian.",
     )
     return parser
 
@@ -114,10 +121,14 @@ def main() -> int:
     for path in (target_dir, scans_dir, screenshots_dir):
         path.mkdir(parents=True, exist_ok=True)
 
-    write_target_index(target_dir / "Target.md", frontmatter, body)
+    target_markdown = build_target_index(frontmatter, body)
+
+    if not args.dry_run:
+        write_target_index(target_dir / "Target.md", frontmatter, body)
 
     try:
-        run_workflow(console, checklist=checklist, target=target)
+        if not args.dry_run:
+            run_workflow(console, checklist=checklist, target=target)
     except RuntimeError as exc:
         console.print(f"[bold red]{exc}[/bold red]")
         return 1
@@ -131,17 +142,35 @@ def main() -> int:
         target=target,
         passphrase=args.notes_passphrase,
     )
-    copied_artifacts = copy_scan_artifacts(overview.get("scans", []), scans_dir)
+    copied_artifacts = [] if args.dry_run else copy_scan_artifacts(overview.get("scans", []), scans_dir)
 
     findings_md = render_findings_markdown(target, scope, checklist, overview)
     notes_md = render_notes_markdown(target, notes, overview.get("notes", []), bool(args.notes_passphrase))
     canvas = build_attack_canvas(target, overview)
 
+    if args.dry_run:
+        console.print(build_summary_table(target, checklist, scope, target_dir, preview_scan_artifacts(overview.get("scans", [])), notes, dry_run=True))
+        console.print(
+            Panel.fit(
+                f"[bold]Would write:[/bold]\n"
+                f"- {target_dir / 'Target.md'}\n"
+                f"- {target_dir / 'Findings.md'}\n"
+                f"- {target_dir / 'Notes.md'}\n"
+                f"- {target_dir / 'Attack-Chain.canvas'}\n"
+                f"- {scans_dir}\n"
+                f"- {screenshots_dir}\n\n"
+                f"[bold]Target.md preview:[/bold]\n{target_markdown[:1200]}",
+                title="Obsidian Dry Run",
+                style="bold yellow",
+            )
+        )
+        return 0
+
     (target_dir / "Findings.md").write_text(findings_md, encoding="utf-8")
     (target_dir / "Notes.md").write_text(notes_md, encoding="utf-8")
     (target_dir / "Attack-Chain.canvas").write_text(json.dumps(canvas, indent=2), encoding="utf-8")
 
-    console.print(build_summary_table(target, checklist, scope, target_dir, copied_artifacts, notes))
+    console.print(build_summary_table(target, checklist, scope, target_dir, copied_artifacts, notes, dry_run=False))
     if args.open:
         open_in_obsidian(console, obsidian_path, target_dir / "Target.md")
     return 0
@@ -173,13 +202,16 @@ def sanitize_target_name(target: str) -> str:
 
 
 def write_target_index(path: Path, frontmatter: dict[str, Any], body: str) -> None:
+    path.write_text(build_target_index(frontmatter, body), encoding="utf-8")
+
+
+def build_target_index(frontmatter: dict[str, Any], body: str) -> str:
     merged = {
         "target": frontmatter.get("target", ""),
         "scope": frontmatter.get("scope", ""),
         "checklist": frontmatter.get("checklist", ""),
     }
-    payload = f"---\n{yaml.safe_dump(merged, sort_keys=False).strip()}\n---\n\n{body.strip()}\n"
-    path.write_text(payload, encoding="utf-8")
+    return f"---\n{yaml.safe_dump(merged, sort_keys=False).strip()}\n---\n\n{body.strip()}\n"
 
 
 def run_workflow(console: Console, *, checklist: str, target: str) -> None:
@@ -191,7 +223,10 @@ def run_workflow(console: Console, *, checklist: str, target: str) -> None:
             style="bold cyan",
         )
     )
-    completed = subprocess.run(command, capture_output=True, text=True, check=False)
+    try:
+        completed = subprocess.run(command, capture_output=True, text=True, check=False, timeout=1800)
+    except subprocess.TimeoutExpired:
+        raise RuntimeError("Neon Ape workflow timed out after 1800 seconds")
     if completed.stdout.strip():
         console.print(completed.stdout.strip())
     if completed.returncode != 0:
@@ -202,12 +237,22 @@ def run_workflow(console: Console, *, checklist: str, target: str) -> None:
 
 def fetch_domain_overview(console: Console, *, target: str, limit: int) -> dict[str, Any] | None:
     command = ["neonape", "db", "domain", "--target", target, "--limit", str(limit), "--json"]
-    completed = subprocess.run(command, capture_output=True, text=True, check=False)
+    try:
+        completed = subprocess.run(command, capture_output=True, text=True, check=False, timeout=120)
+    except subprocess.TimeoutExpired:
+        console.print("[bold red]Neon Ape domain overview timed out. Try a smaller `--limit` value.[/bold red]")
+        return None
     if completed.returncode != 0:
         if completed.stderr.strip():
             console.print(f"[bold red]{completed.stderr.strip()}[/bold red]")
         else:
             console.print("[bold red]Failed to read Neon Ape domain overview.[/bold red]")
+        return None
+    if len(completed.stdout.encode("utf-8")) > MAX_OVERVIEW_BYTES:
+        console.print(
+            "[bold red]Neon Ape domain overview is too large for a single sync pass.[/bold red] "
+            "Re-run with a smaller `--limit` value."
+        )
         return None
     try:
         return json.loads(completed.stdout)
@@ -269,6 +314,15 @@ def copy_scan_artifacts(scans: list[dict[str, Any]], destination: Path) -> list[
         shutil.copy2(source, target)
         copied.append(target.name)
     return sorted(set(copied))
+
+
+def preview_scan_artifacts(scans: list[dict[str, Any]]) -> list[str]:
+    names: list[str] = []
+    for scan in scans:
+        raw_output_path = str(scan.get("raw_output_path", "") or "")
+        if raw_output_path:
+            names.append(Path(os.path.expanduser(raw_output_path)).name)
+    return sorted(set(names))
 
 
 def render_findings_markdown(target: str, scope: str, checklist: str, overview: dict[str, Any]) -> str:
@@ -424,6 +478,8 @@ def build_summary_table(
     target_dir: Path,
     copied_artifacts: list[str],
     notes: list[dict[str, str]],
+    *,
+    dry_run: bool,
 ) -> Table:
     table = Table(title="Obsidian Sync", expand=False)
     table.add_column("Field", style="bold")
@@ -434,6 +490,7 @@ def build_summary_table(
     table.add_row("Vault Output", str(target_dir))
     table.add_row("Copied Scans", str(len(copied_artifacts)))
     table.add_row("Notes", str(len(notes)))
+    table.add_row("Dry Run", str(dry_run))
     return table
 
 

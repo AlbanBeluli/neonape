@@ -46,6 +46,11 @@ def build_parser() -> argparse.ArgumentParser:
             "Maintenance:\n"
             "  neonape uninstall\n"
             "  neonape uninstall --purge-data --yes\n\n"
+            "Config:\n"
+            "  neonape config show\n"
+            "  neonape config init\n"
+            "  neonape config set privacy_mode false\n"
+            "  neonape config set theme_name eva\n\n"
             "Transfer:\n"
             "  neonape export scans --output scans.json\n"
             "  neonape export findings --format csv --output findings.csv\n"
@@ -78,6 +83,14 @@ def build_parser() -> argparse.ArgumentParser:
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     subparsers = parser.add_subparsers(dest="command")
+    config_parser = subparsers.add_parser("config", help="Show or update Neon Ape user config.")
+    config_subparsers = config_parser.add_subparsers(dest="config_action", required=True)
+    config_subparsers.add_parser("show", help="Show the effective Neon Ape config.")
+    config_subparsers.add_parser("init", help="Write a starter config file if one does not exist.")
+    config_set = config_subparsers.add_parser("set", help="Set a config key in ~/.config/neonape/config.toml.")
+    config_set.add_argument("key", help="Config key to change.")
+    config_set.add_argument("value", help="New value for the config key.")
+
     review_parser = subparsers.add_parser("review", help="Show normalized service inventory and local review matches for a target.")
     review_parser.add_argument("--target", required=True, help="Domain, host, or target string to review.")
     review_parser.add_argument("--limit", type=int, default=50, help="Maximum number of rows per section to show.")
@@ -192,6 +205,9 @@ def main() -> int:
     args = build_parser().parse_args()
     app = NeonApeApp()
     app.command = args.command
+    app.config_action = getattr(args, "config_action", None)
+    app.config_key = getattr(args, "key", None)
+    app.config_value = getattr(args, "value", None)
     app.review_target = getattr(args, "target", None) if args.command == "review" else None
     app.review_limit = getattr(args, "limit", 50) if args.command == "review" else 50
     app.review_json_output = getattr(args, "json", False) if args.command == "review" else False

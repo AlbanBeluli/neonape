@@ -8,6 +8,15 @@ def test_parse_db_subcommand() -> None:
     assert args.db_command == "tables"
 
 
+def test_parse_config_set_subcommand() -> None:
+    parser = build_parser()
+    args = parser.parse_args(["config", "set", "privacy_mode", "false"])
+    assert args.command == "config"
+    assert args.config_action == "set"
+    assert args.key == "privacy_mode"
+    assert args.value == "false"
+
+
 def test_parse_uninstall_subcommand() -> None:
     parser = build_parser()
     args = parser.parse_args(["uninstall", "--purge-data", "--yes"])

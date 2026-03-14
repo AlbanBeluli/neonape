@@ -4,6 +4,7 @@ from rich.panel import Panel
 from rich.console import Console
 
 from neon_ape.commands.notes import run_add_note, run_notes_listing, run_view_note
+from neon_ape.commands.config import run_config_command
 from neon_ape.commands.review import run_review
 from neon_ape.config import AppConfig, detect_installed_tools
 from neon_ape.db.repository import (
@@ -35,6 +36,9 @@ class NeonApeApp:
         self.logger = None
         self.command: str | None = None
         self.db_command: str | None = None
+        self.config_action: str | None = None
+        self.config_key: str | None = None
+        self.config_value: str | None = None
         self.review_target: str | None = None
         self.review_limit = 50
         self.review_json_output = False
@@ -72,6 +76,16 @@ class NeonApeApp:
                 self.config,
                 assume_yes=self.uninstall_yes,
                 purge_data=self.uninstall_purge_data,
+            )
+            return
+
+        if self.command == "config":
+            run_config_command(
+                self.console,
+                self.config,
+                action=str(self.config_action),
+                key=self.config_key,
+                value=self.config_value,
             )
             return
 

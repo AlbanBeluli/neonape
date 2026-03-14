@@ -28,6 +28,7 @@ def test_uninstall_removes_install_root_launcher_and_data(tmp_path) -> None:
         schema_path=tmp_path / "schema.sql",
         scan_dir=data_dir / "scans",
         privacy_mode=True,
+        theme_name="eva",
     )
     app = NeonApeApp(config=config)
     app.command = "uninstall"

@@ -2,7 +2,9 @@ from pathlib import Path
 
 from neon_ape.obsidian_sync import (
     build_attack_canvas,
+    build_target_index,
     parse_frontmatter,
+    preview_scan_artifacts,
     render_findings_markdown,
     render_markdown_table,
     sanitize_target_name,
@@ -70,3 +72,20 @@ def test_build_attack_canvas_creates_target_and_review_nodes() -> None:
 
 def test_sanitize_target_name_removes_unsafe_characters() -> None:
     assert sanitize_target_name("example.com/path?x=1") == "example.com_path_x_1"
+
+
+def test_build_target_index_preserves_frontmatter_keys() -> None:
+    payload = build_target_index({"target": "example.com", "scope": "in-scope", "checklist": "pd_web_chain"}, "# Notes")
+    assert 'target: example.com' in payload
+    assert "# Notes" in payload
+
+
+def test_preview_scan_artifacts_returns_unique_names() -> None:
+    artifacts = preview_scan_artifacts(
+        [
+            {"raw_output_path": "~/.neon_ape/scans/httpx_example.jsonl"},
+            {"raw_output_path": "~/.neon_ape/scans/httpx_example.jsonl"},
+            {"raw_output_path": "~/.neon_ape/scans/nuclei_example.jsonl"},
+        ]
+    )
+    assert artifacts == ["httpx_example.jsonl", "nuclei_example.jsonl"]
