@@ -401,20 +401,13 @@ def _prompt_obsidian_sync(console: Console, config) -> str:
     target_note = _ask_text(console, "Target note", default="Pentests/example.com/Target.md")
     if target_note is None:
         return "Returned from Obsidian sync."
-    vault_path = _ask_text(
-        console,
-        "Vault path",
-        default=str(config.obsidian_vault_path) if config.obsidian_vault_path else "",
-    )
-    if vault_path is None:
-        return "Returned from Obsidian sync."
-    resolved_vault = resolve_vault_path(vault_path or None, config)
+    resolved_vault = resolve_vault_path(None, config)
     if resolved_vault is None:
         console.print(
             Panel.fit(
                 "No Obsidian vault could be resolved.\n\n"
                 "Set one once with:\n"
-                "`neonape config set obsidian_vault_path ~/Documents/Obsidian`\n\n"
+                "`neonape config set obsidian_vault_path \"/path/to/your vault\"`\n\n"
                 "or rerun this action and enter the vault path directly,\n"
                 "or launch Neon Ape from inside an existing Obsidian vault.",
                 title="Obsidian Vault Needed",
@@ -423,25 +416,31 @@ def _prompt_obsidian_sync(console: Console, config) -> str:
         )
         _pause(console)
         return "Obsidian sync needs a configured or discoverable vault path."
-    dry_run = Prompt.ask("[bold cyan]Dry run[/bold cyan]", choices=["y", "n"], default="y") == "y"
-    skip_run = Prompt.ask("[bold cyan]Skip workflow run[/bold cyan]", choices=["y", "n"], default="n") == "y"
-    open_note = False
-    if not dry_run:
-        open_note = Prompt.ask("[bold cyan]Open note in Obsidian[/bold cyan]", choices=["y", "n"], default="n") == "y"
+    console.print(
+        Panel.fit(
+            f"Using Obsidian vault:\n{resolved_vault}\n\n"
+            "Interactive sync uses safe defaults:\n"
+            "- dry-run preview\n"
+            "- no workflow execution\n"
+            "- no note auto-open",
+            title="Obsidian Sync",
+            style=section_style("accent"),
+        )
+    )
     status = run_obsidian_sync(
         SimpleNamespace(
-            vault_path=vault_path or None,
+            vault_path=None,
             target_note=target_note,
             notes_passphrase=None,
             limit=200,
-            open=open_note,
-            dry_run=dry_run,
-            skip_run=skip_run,
+            open=False,
+            dry_run=True,
+            skip_run=True,
         ),
         console=console,
     )
     _pause(console)
-    return f"Obsidian sync {'completed' if status == 0 else 'failed'} for `{target_note}`."
+    return f"Obsidian preview {'completed' if status == 0 else 'failed'} for `{target_note}`."
 
 
 def _pause(console: Console) -> None:

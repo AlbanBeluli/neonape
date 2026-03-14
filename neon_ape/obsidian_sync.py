@@ -112,7 +112,10 @@ def run_sync(args: argparse.Namespace | SimpleNamespace, console: Console | None
         else:
             active_console.print(f"[bold red]Vault path does not exist:[/bold red] {vault_path}")
         return 1
+    frontmatter: dict[str, Any]
+    body: str
     if not target_note.exists():
+        frontmatter, body = build_starter_note_payload(derive_target_from_note_reference(target_note_relative))
         if getattr(args, "dry_run", False):
             active_console.print(
                 Panel.fit(
@@ -125,7 +128,13 @@ def run_sync(args: argparse.Namespace | SimpleNamespace, console: Console | None
                 )
             )
         else:
-            create_target_note(target_note, derive_target_from_note_reference(target_note_relative))
+            create_target_note(target_note, frontmatter, body)
+    else:
+        try:
+            frontmatter, body = parse_frontmatter(target_note.read_text(encoding="utf-8"))
+        except ValueError as exc:
+            active_console.print(f"[bold red]{exc}[/bold red]")
+            return 1
 
     obsidian_path = shutil.which("obsidian")
     if not obsidian_path:
@@ -138,12 +147,6 @@ def run_sync(args: argparse.Namespace | SimpleNamespace, console: Console | None
                 style="bold yellow",
             )
         )
-
-    try:
-        frontmatter, body = parse_frontmatter(target_note.read_text(encoding="utf-8"))
-    except ValueError as exc:
-        active_console.print(f"[bold red]{exc}[/bold red]")
-        return 1
 
     target = str(frontmatter.get("target", "")).strip()
     checklist = str(frontmatter.get("checklist", "pd_web_chain")).strip() or "pd_web_chain"
@@ -248,10 +251,15 @@ def ensure_template(template_path: Path) -> None:
     template_path.write_text(DEFAULT_TEMPLATE, encoding="utf-8")
 
 
-def create_target_note(target_note: Path, target: str) -> None:
+def build_starter_note_payload(target: str) -> tuple[dict[str, Any], str]:
+    frontmatter, body = parse_frontmatter(DEFAULT_TEMPLATE)
+    frontmatter["target"] = target
+    return frontmatter, body
+
+
+def create_target_note(target_note: Path, frontmatter: dict[str, Any], body: str) -> None:
     target_note.parent.mkdir(parents=True, exist_ok=True)
-    payload = DEFAULT_TEMPLATE.replace('target: "example.com"', f'target: "{target}"')
-    target_note.write_text(payload, encoding="utf-8")
+    target_note.write_text(build_target_index(frontmatter, body), encoding="utf-8")
 
 
 def normalize_target_note_reference(value: str) -> Path:

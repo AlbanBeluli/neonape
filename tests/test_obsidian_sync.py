@@ -1,8 +1,10 @@
 from pathlib import Path
+from types import SimpleNamespace
 
 from neon_ape.config import AppConfig
 from neon_ape.obsidian_sync import (
     build_attack_canvas,
+    build_starter_note_payload,
     build_target_index,
     derive_target_from_note_reference,
     normalize_target_note_reference,
@@ -11,6 +13,7 @@ from neon_ape.obsidian_sync import (
     render_findings_markdown,
     render_markdown_table,
     resolve_vault_path,
+    run_sync,
     sanitize_target_name,
 )
 
@@ -107,6 +110,12 @@ def test_derive_target_from_note_reference_uses_parent_folder_for_target_md() ->
     assert derive_target_from_note_reference(Path("Pentests") / "example.com" / "Target.md") == "example.com"
 
 
+def test_build_starter_note_payload_uses_requested_target() -> None:
+    frontmatter, body = build_starter_note_payload("test.com")
+    assert frontmatter["target"] == "test.com"
+    assert "# Target Notes" in body
+
+
 def test_resolve_vault_path_uses_config_value(tmp_path, monkeypatch) -> None:
     vault = tmp_path / "vault"
     vault.mkdir()
@@ -180,3 +189,61 @@ def test_resolve_vault_path_prefers_current_vault_over_stale_config(tmp_path, mo
     )
 
     assert resolve_vault_path(None, config) == vault.resolve()
+
+
+class StubConsole:
+    def __init__(self) -> None:
+        self.messages: list[str] = []
+
+    def print(self, message) -> None:
+        self.messages.append(str(message))
+
+
+def test_run_sync_dry_run_handles_missing_target_note(tmp_path, monkeypatch) -> None:
+    vault = tmp_path / "vault"
+    (vault / ".obsidian").mkdir(parents=True)
+    config = AppConfig(
+        app_name="Neon Ape",
+        config_path=tmp_path / "config.toml",
+        install_root=tmp_path / "install",
+        bin_dir=tmp_path / "bin",
+        launcher_path=tmp_path / "bin" / "neonape",
+        data_dir=tmp_path / "data",
+        db_path=tmp_path / "data" / "neon_ape.db",
+        log_path=tmp_path / "data" / "neon_ape.log",
+        checklist_path=tmp_path / "seed.json",
+        schema_path=tmp_path / "schema.sql",
+        scan_dir=tmp_path / "data" / "scans",
+        privacy_mode=True,
+        theme_name="eva",
+        obsidian_vault_path=vault,
+    )
+    monkeypatch.setattr("neon_ape.obsidian_sync.AppConfig.default", lambda: config)
+    monkeypatch.setattr("neon_ape.obsidian_sync.fetch_domain_overview", lambda console, target, limit: {
+        "scans": [],
+        "findings": [],
+        "web_paths": {"katana": [], "gobuster": []},
+        "notes": [],
+        "inventory": [],
+        "reviews": [],
+    })
+    monkeypatch.setattr("neon_ape.obsidian_sync.decrypt_notes_for_target", lambda *args, **kwargs: [])
+    monkeypatch.setattr("neon_ape.obsidian_sync.shutil.which", lambda _: None)
+    console = StubConsole()
+
+    status = run_sync(
+        SimpleNamespace(
+            vault_path=None,
+            target_note="test.com",
+            notes_passphrase=None,
+            limit=20,
+            open=False,
+            dry_run=True,
+            skip_run=True,
+        ),
+        console=console,
+    )
+
+    assert status == 0
+    assert not (vault / "Pentests" / "test.com" / "Target.md").exists()
+    assert len(console.messages) >= 2
