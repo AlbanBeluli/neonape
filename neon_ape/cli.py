@@ -44,6 +44,8 @@ def build_parser() -> argparse.ArgumentParser:
             "Review:\n"
             "  neonape review --target example.com\n\n"
             "Maintenance:\n"
+            "  neonape update\n"
+            "  neonape update --yes\n"
             "  neonape uninstall\n"
             "  neonape uninstall --purge-data --yes\n\n"
             "Config:\n"
@@ -83,6 +85,8 @@ def build_parser() -> argparse.ArgumentParser:
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     subparsers = parser.add_subparsers(dest="command")
+    update_parser = subparsers.add_parser("update", help="Refresh an install-managed Neon Ape copy in place.")
+    update_parser.add_argument("--yes", action="store_true", help="Skip the confirmation prompt.")
     config_parser = subparsers.add_parser("config", help="Show or update Neon Ape user config.")
     config_subparsers = config_parser.add_subparsers(dest="config_action", required=True)
     config_subparsers.add_parser("show", help="Show the effective Neon Ape config.")
@@ -229,6 +233,7 @@ def main() -> int:
     app.note_id = getattr(args, "note_id", None)
     app.uninstall_yes = getattr(args, "yes", False)
     app.uninstall_purge_data = getattr(args, "purge_data", False)
+    app.update_yes = getattr(args, "yes", False) if args.command == "update" else False
     app.target = args.target
     app.profile = args.profile
     app.run_nmap = args.run_nmap

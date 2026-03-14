@@ -25,6 +25,13 @@ def test_parse_uninstall_subcommand() -> None:
     assert args.yes is True
 
 
+def test_parse_update_subcommand() -> None:
+    parser = build_parser()
+    args = parser.parse_args(["update", "--yes"])
+    assert args.command == "update"
+    assert args.yes is True
+
+
 def test_parse_tool_command_flags() -> None:
     parser = build_parser()
     args = parser.parse_args(["--tool", "httpx", "--target", "https://example.com"])

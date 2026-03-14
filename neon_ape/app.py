@@ -6,6 +6,7 @@ from rich.console import Console
 from neon_ape.commands.notes import run_add_note, run_notes_listing, run_view_note
 from neon_ape.commands.config import run_config_command
 from neon_ape.commands.review import run_review
+from neon_ape.commands.update import run_update
 from neon_ape.config import AppConfig, detect_installed_tools
 from neon_ape.db.repository import (
     checklist_summary,
@@ -59,6 +60,7 @@ class NeonApeApp:
         self.note_id: int | None = None
         self.uninstall_yes = False
         self.uninstall_purge_data = False
+        self.update_yes = False
         self.target: str | None = None
         self.profile = "service_scan"
         self.run_nmap = False
@@ -76,6 +78,14 @@ class NeonApeApp:
                 self.config,
                 assume_yes=self.uninstall_yes,
                 purge_data=self.uninstall_purge_data,
+            )
+            return
+
+        if self.command == "update":
+            run_update(
+                self.console,
+                self.config,
+                assume_yes=self.update_yes,
             )
             return
 
