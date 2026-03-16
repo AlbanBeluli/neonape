@@ -2,6 +2,7 @@ from pathlib import Path
 
 from rich.panel import Panel
 from rich.table import Table
+from rich.text import Text
 
 from neon_ape.ui.ascii import ADAM_BANNER, MISSION_COMPLETE_BANNER
 
@@ -23,18 +24,51 @@ def build_checklist_table(items: list[dict[str, str | int | None]]) -> Table:
     table.add_column("Step", style="bold")
     table.add_column("Section")
     table.add_column("Title")
+    table.add_column("Command")
     table.add_column("Action")
+    table.add_column("Run Now?")
     table.add_column("Status")
     for item in items:
         action = item.get("action_tool") or "-"
         profile = item.get("action_profile") or "-"
         action_label = action if profile == "-" else f"{action}:{profile}"
+        run_now = "Yes" if action != "-" else "Manual"
         table.add_row(
             str(item.get("step_order", "")),
             str(item.get("section_name", "")),
             str(item.get("title", "")),
+            str(item.get("example_command", "-")),
             action_label,
-            str(item.get("status", "pending")),
+            run_now,
+            _status_label(str(item.get("status", "todo"))),
+        )
+    return table
+
+
+def build_magi_execution_table(
+    items: list[dict[str, str | int | None]],
+    *,
+    active_step: int | None = None,
+) -> Table:
+    table = Table(title="MAGI Checklist Execution", expand=False)
+    table.add_column("Step", style="bold")
+    table.add_column("Section")
+    table.add_column("Title")
+    table.add_column("Run Now?")
+    table.add_column("Status")
+    for item in items:
+        step_order = int(item.get("step_order", 0) or 0)
+        run_now = "Yes" if item.get("action_tool") else "Manual"
+        status = str(item.get("status", "todo"))
+        title = str(item.get("title", ""))
+        if active_step == step_order:
+            title = f"> {title}"
+        table.add_row(
+            str(step_order),
+            str(item.get("section_name", "")),
+            title,
+            run_now,
+            _status_label(status),
         )
     return table
 
@@ -78,7 +112,7 @@ def build_angel_eyes_panel(summary: dict[str, object]) -> Panel:
         f"[bold]Highest Risk:[/bold] {highest}\n"
         "[italic]Generate review to produce defensive triage from Angel Eyes evidence.[/italic]"
     )
-    return Panel.fit(body, title="Angel Eyes - Web Exposure Review", style="bold magenta")
+    return Panel.fit(body, title="Angel Eyes – Web Exposure Review", style="bold magenta")
 
 
 def build_adam_intro_panel() -> Panel:
@@ -109,3 +143,12 @@ def build_adam_completion_panel(
         f"[bold]Daily Report Folder:[/bold] {daily_report_dir if daily_report_dir else '-'}"
     )
     return Panel.fit(body, title="Mission Complete", style="bold red")
+
+
+def _status_label(status: str) -> Text:
+    normalized = status.strip().lower()
+    if normalized == "done":
+        return Text("done", style="bold green")
+    if normalized == "in_progress":
+        return Text("in_progress", style="bold yellow")
+    return Text("todo", style="bold bright_black")

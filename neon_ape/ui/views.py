@@ -92,6 +92,8 @@ def build_findings_table(findings: list[dict[str, str]]) -> Table:
 
 
 def build_tool_output_table(tool_name: str, findings: list[dict[str, str]]) -> Table:
+    if tool_name == "passive_recon":
+        return build_passive_recon_table(findings)
     if tool_name == "httpx":
         return build_httpx_table(findings)
     if tool_name == "naabu":
@@ -103,6 +105,23 @@ def build_tool_output_table(tool_name: str, findings: list[dict[str, str]]) -> T
     if tool_name in {"katana", "gobuster"}:
         return build_web_path_table(findings, tool_name)
     return build_findings_table(findings)
+
+
+def build_passive_recon_table(findings: list[dict[str, str]]) -> Table:
+    table = Table(title="Passive Recon Findings", expand=False)
+    table.add_column("Type", style="bold")
+    table.add_column("Key")
+    table.add_column("Value")
+    if not findings:
+        table.add_row("info", "-", "No parsed findings")
+        return table
+    for finding in findings:
+        table.add_row(
+            finding.get("type", "unknown"),
+            finding.get("key", "-"),
+            finding.get("value", "-"),
+        )
+    return table
 
 
 def build_httpx_table(findings: list[dict[str, str]]) -> Table:
@@ -193,15 +212,15 @@ def build_tables_table(tables: list[str]) -> Table:
 
 
 def build_landing_panel(data_dir: Path, checklist_items: list[dict[str, str | int | None]]) -> Panel:
-    complete = sum(1 for item in checklist_items if item.get("status") == "complete")
-    pending_items = [item for item in checklist_items if item.get("status") != "complete"]
+    complete = sum(1 for item in checklist_items if item.get("status") in {"done", "complete"})
+    pending_items = [item for item in checklist_items if item.get("status") not in {"done", "complete"}]
     next_steps = "\n".join(
         f"{item.get('step_order')}. {item.get('title')}"
         for item in pending_items[:3]
     ) or "All checklist items completed."
     body = (
         f"[bold green]Ready.[/bold green] Runtime data lives under [bold]{display_runtime_path(data_dir)}[/bold]\n"
-        f"[bold]Checklist progress:[/bold] {complete}/{len(checklist_items)} complete\n"
+        f"[bold]Checklist progress:[/bold] {complete}/{len(checklist_items)} done\n"
         f"[bold]Next steps:[/bold]\n{next_steps}"
     )
     return Panel.fit(body, title="Launch Overview", style=section_style("green"))

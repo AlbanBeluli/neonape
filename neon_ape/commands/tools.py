@@ -9,8 +9,10 @@ from rich.panel import Panel
 
 from neon_ape.db.repository import get_checklist_item, mark_checklist_item_status, record_scan
 from neon_ape.services.validation import validate_target
+from neon_ape.tools.base import ToolResult
 from neon_ape.tools.web_paths import correlate_sensitive_paths, grouped_sensitive_paths
 from neon_ape.tools.nmap import build_nmap_command, execute_nmap, parse_nmap_xml, render_command_preview
+from neon_ape.tools.passive_recon import build_passive_recon_findings
 from neon_ape.tools.projectdiscovery import (
     build_projectdiscovery_batch_command,
     build_projectdiscovery_command,
@@ -96,6 +98,11 @@ def run_checklist_step(
         mark_step_outcome(console, connection, checklist_step, success)
         return step_profile, action_tool
 
+    if action_tool == "passive_recon":
+        success = run_passive_recon(console, connection, target=target, profile=step_profile)
+        mark_step_outcome(console, connection, checklist_step, success)
+        return step_profile, action_tool
+
     if action_tool == "gobuster":
         success = run_gobuster(console, connection, target=target, scan_dir=scan_dir)
         mark_step_outcome(console, connection, checklist_step, success)
@@ -171,6 +178,61 @@ def run_projectdiscovery_tool(
     console.print(build_tool_output_table(tool_name, findings))
     _render_angel_eyes(console, tool_name, findings)
     console.print(f"[bold green]{tool_name} exit code:[/bold green] {result.exit_code}")
+    if result.exit_code != 0 and result.stderr:
+        console.print(f"[bold red]{result.stderr}[/bold red]")
+    return result.exit_code == 0
+
+
+def run_passive_recon(
+    console: Console,
+    connection,
+    *,
+    target: str,
+    profile: str,
+) -> bool:
+    try:
+        validated_target = validate_target(target)
+    except ValueError as exc:
+        console.print(f"[bold red]{exc}[/bold red]")
+        return False
+
+    command_preview = {
+        "whois_lookup": f"python -m neon_ape.tools.passive_recon whois {validated_target}",
+        "dns_a_records": f"python -m neon_ape.tools.passive_recon dns-a {validated_target}",
+    }.get(profile, profile)
+    console.print(
+        Panel.fit(
+            f"[bold]Profile:[/bold] {profile}\n[bold]Target:[/bold] {validated_target}\n"
+            f"[bold]Command:[/bold] {command_preview}",
+            title="Angel Enumeration",
+            style=section_style("orange"),
+        )
+    )
+    try:
+        findings = build_passive_recon_findings(profile, validated_target)
+        result = ToolResult(
+            tool_name="passive_recon",
+            target=validated_target,
+            command=["passive_recon", profile, validated_target],
+            stdout="",
+            stderr="",
+            exit_code=0,
+            raw_output_path="",
+        )
+    except Exception as exc:  # noqa: BLE001 - deliberate local guard for terminal UX
+        result = ToolResult(
+            tool_name="passive_recon",
+            target=validated_target,
+            command=["passive_recon", profile, validated_target],
+            stdout="",
+            stderr=str(exc),
+            exit_code=1,
+            raw_output_path="",
+        )
+        findings = []
+    record_scan(connection, result, findings)
+    console.print(build_tool_output_table("passive_recon", findings))
+    console.print(f"[bold green]passive_recon exit code:[/bold green] {result.exit_code}")
     if result.exit_code != 0 and result.stderr:
         console.print(f"[bold red]{result.stderr}[/bold red]")
     return result.exit_code == 0
@@ -416,7 +478,7 @@ def run_chained_recon_workflow(
 
 
 def mark_step_outcome(console: Console, connection, step_order: int, success: bool) -> None:
-    status = "complete" if success else "in_progress"
+    status = "done" if success else "in_progress"
     mark_checklist_item_status(connection, step_order, status)
     label = "completed" if success else "left in progress"
     console.print(f"[bold cyan]Checklist step {step_order} {label}.[/bold cyan]")

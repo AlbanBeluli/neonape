@@ -2,6 +2,26 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.4.0] - 2026-03-16
+
+### Added
+
+- Full MAGI checklist expansion covering passive recon, host discovery, port scanning, service enumeration, nuclei review, and web path review
+- Adam-driven MAGI checklist execution with live Rich progress and per-step run/skip/done prompts
+- Passive recon checklist actions backed by WHOIS and DNS A-record collection with DB persistence
+- Checklist state preservation across reseeds so Adam and the interactive shell keep prior completion history
+
+### Changed
+
+- Checklist status flow now uses `todo`, `in_progress`, and `done`
+- Adam now seeds recon-complete checklist steps from its existing workflow evidence before entering the MAGI phase
+- macOS Daniel notification now reflects MAGI completion wording
+
+### Fixed
+
+- Checklist rows are no longer reset to empty state every time the seed file is reloaded
+- Landing and checklist views now treat legacy `complete/pending` rows as normalized `done/todo`
+
 ## [0.3.0] - 2026-03-14
 
 ### Added

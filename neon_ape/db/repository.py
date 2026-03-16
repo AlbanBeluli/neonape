@@ -43,12 +43,21 @@ def seed_checklist_from_file(connection: sqlite3.Connection, checklist_path: Pat
     with checklist_path.open("r", encoding="utf-8") as handle:
         payload = json.load(handle)
 
+    previous_status: dict[int, tuple[str, str | None]] = {}
     existing = connection.execute(
         "SELECT id FROM checklists WHERE slug = ?",
         (payload["slug"],),
     ).fetchone()
     if existing:
         checklist_id = existing["id"]
+        rows = connection.execute(
+            "SELECT step_order, status, completed_at FROM checklist_items WHERE checklist_id = ?",
+            (checklist_id,),
+        ).fetchall()
+        previous_status = {
+            int(row["step_order"]): (_normalize_checklist_status(str(row["status"] or "todo")), row["completed_at"])
+            for row in rows
+        }
         connection.execute(
             "UPDATE checklists SET title = ?, description = ? WHERE id = ?",
             (payload["title"], payload["description"], checklist_id),
@@ -62,11 +71,12 @@ def seed_checklist_from_file(connection: sqlite3.Connection, checklist_path: Pat
         checklist_id = cursor.lastrowid
 
     for item in payload["items"]:
+        item_status, completed_at = previous_status.get(int(item["step_order"]), ("todo", None))
         connection.execute(
             """
             INSERT INTO checklist_items (
-                checklist_id, step_order, section_name, title, guide_text, example_command, action_tool, action_profile
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                checklist_id, step_order, section_name, title, guide_text, example_command, action_tool, action_profile, status, completed_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 checklist_id,
@@ -77,6 +87,8 @@ def seed_checklist_from_file(connection: sqlite3.Connection, checklist_path: Pat
                 item["example_command"],
                 item.get("action_tool"),
                 item.get("action_profile"),
+                item_status,
+                completed_at,
             ),
         )
     connection.commit()
@@ -88,7 +100,7 @@ def checklist_summary(connection: sqlite3.Connection) -> dict[str, str | int]:
         SELECT
             c.title,
             COUNT(ci.id) AS item_count,
-            SUM(CASE WHEN ci.status = 'complete' THEN 1 ELSE 0 END) AS complete_count
+            SUM(CASE WHEN ci.status IN ('done', 'complete') THEN 1 ELSE 0 END) AS complete_count
         FROM checklists c
         LEFT JOIN checklist_items ci ON ci.checklist_id = c.id
         GROUP BY c.id
@@ -129,7 +141,10 @@ def list_checklist_items(connection: sqlite3.Connection) -> list[dict[str, str |
         ORDER BY step_order
         """
     ).fetchall()
-    return [dict(row) for row in rows]
+    items = [dict(row) for row in rows]
+    for item in items:
+        item["status"] = _normalize_checklist_status(str(item.get("status") or "todo"))
+    return items
 
 
 def get_checklist_item(connection: sqlite3.Connection, step_order: int) -> dict[str, str | int | None] | None:
@@ -150,7 +165,11 @@ def get_checklist_item(connection: sqlite3.Connection, step_order: int) -> dict[
         """,
         (step_order,),
     ).fetchone()
-    return dict(row) if row is not None else None
+    if row is None:
+        return None
+    item = dict(row)
+    item["status"] = _normalize_checklist_status(str(item.get("status") or "todo"))
+    return item
 
 
 def mark_checklist_item_status(
@@ -158,7 +177,8 @@ def mark_checklist_item_status(
     step_order: int,
     status: str,
 ) -> None:
-    completed_at = "CURRENT_TIMESTAMP" if status == "complete" else "NULL"
+    normalized_status = _normalize_checklist_status(status)
+    completed_at = "CURRENT_TIMESTAMP" if normalized_status == "done" else "NULL"
     connection.execute(
         f"""
         UPDATE checklist_items
@@ -166,9 +186,20 @@ def mark_checklist_item_status(
         WHERE checklist_id = (SELECT id FROM checklists ORDER BY id DESC LIMIT 1)
           AND step_order = ?
         """,
-        (status, step_order),
+        (normalized_status, step_order),
     )
     connection.commit()
+
+
+def _normalize_checklist_status(status: str) -> str:
+    lowered = status.strip().lower()
+    if lowered == "pending":
+        return "todo"
+    if lowered == "complete":
+        return "done"
+    if lowered in {"todo", "in_progress", "done"}:
+        return lowered
+    return "todo"
 
 
 def record_scan(

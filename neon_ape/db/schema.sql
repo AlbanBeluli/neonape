@@ -16,7 +16,7 @@ CREATE TABLE IF NOT EXISTS checklist_items (
     example_command TEXT NOT NULL,
     action_tool TEXT,
     action_profile TEXT,
-    status TEXT NOT NULL DEFAULT 'pending',
+    status TEXT NOT NULL DEFAULT 'todo',
     completed_at TEXT,
     FOREIGN KEY (checklist_id) REFERENCES checklists(id)
 );

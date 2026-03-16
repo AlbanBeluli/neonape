@@ -42,8 +42,10 @@ def test_seed_checklist_and_status_update() -> None:
     assert len(items) >= 1
     assert get_checklist_item(connection, 1)["title"] == "Validate target scope"
 
-    mark_checklist_item_status(connection, 1, "complete")
-    assert get_checklist_item(connection, 1)["status"] == "complete"
+    mark_checklist_item_status(connection, 1, "done")
+    assert get_checklist_item(connection, 1)["status"] == "done"
+    seed_checklist_from_file(connection, root / "neon_ape" / "checklists" / "neon_ape_checklist.json")
+    assert get_checklist_item(connection, 1)["status"] == "done"
 
 
 def test_record_scan_persists_scan_and_findings() -> None:

@@ -26,9 +26,14 @@ def copy_daily_reports(target: str, report_files: list[Path], *, base_dir: Path 
     return destination
 
 
-def speak_completion(highest_risk: int) -> list[str]:
+def speak_completion(highest_risk: int, *, checklist_complete: bool = False) -> list[str]:
+    first_line = (
+        f"Adam reconnaissance and MAGI checklist complete. Highest risk score is {highest_risk}."
+        if checklist_complete
+        else "Adam reconnaissance complete."
+    )
     lines = [
-        "Adam reconnaissance complete.",
+        first_line,
         f"Highest risk score is {highest_risk}.",
         "Daily report folder created.",
     ]
