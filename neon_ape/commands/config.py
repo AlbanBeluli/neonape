@@ -19,6 +19,7 @@ def run_config_command(
 ) -> None:
     if action == "show":
         current = load_user_config(config.config_path)
+        llm_model_display = config.llm_model if config.llm_provider == "ollama" else f"{config.llm_model} (ollama only; inactive with cline)"
         merged = {
             "config_path": str(config.config_path),
             "data_dir": str(config.data_dir),
@@ -28,9 +29,11 @@ def run_config_command(
             "bin_dir": str(config.bin_dir),
             "obsidian_vault_path": str(config.obsidian_vault_path) if config.obsidian_vault_path else "",
             "llm_provider": config.llm_provider,
-            "llm_model": config.llm_model,
+            "llm_model": llm_model_display,
         }
         merged.update(current)
+        if str(merged.get("llm_provider", config.llm_provider)).strip().lower() != "ollama":
+            merged["llm_model"] = f"{config.llm_model} (ollama only; inactive with cline)"
         console.print(_build_config_table(merged))
         return
 

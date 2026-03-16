@@ -1,5 +1,8 @@
 from pathlib import Path
 
+from rich.console import Console
+
+from neon_ape.commands.config import run_config_command
 from neon_ape.config import AppConfig, load_user_config, save_user_config, update_user_config
 
 
@@ -96,3 +99,31 @@ def test_save_and_update_user_config(tmp_path) -> None:
     assert loaded["obsidian_vault_path"] == "~/vault"
     assert loaded["llm_provider"] == "cline"
     assert loaded["llm_model"] == "qwen3.5:4b"
+
+
+def test_config_show_marks_llm_model_inactive_for_cline(tmp_path) -> None:
+    console = Console(record=True, width=120)
+
+    config = AppConfig(
+        app_name="Neon Ape",
+        install_root=tmp_path / "install",
+        bin_dir=tmp_path / "bin",
+        launcher_path=tmp_path / "bin" / "neonape",
+        data_dir=tmp_path / "data",
+        db_path=tmp_path / "data" / "neon_ape.db",
+        log_path=tmp_path / "data" / "neon_ape.log",
+        checklist_path=tmp_path / "seed.json",
+        schema_path=tmp_path / "schema.sql",
+        scan_dir=tmp_path / "data" / "scans",
+        config_path=tmp_path / "config.toml",
+        privacy_mode=True,
+        theme_name="eva",
+        obsidian_vault_path=None,
+        llm_provider="cline",
+        llm_model="qwen3.5:4b",
+    )
+
+    run_config_command(console, config, action="show")
+
+    rendered = console.export_text()
+    assert "ollama only; inactive with cline" in rendered
