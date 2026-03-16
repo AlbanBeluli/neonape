@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import subprocess
+import tempfile
 from shutil import which
 
 
@@ -51,13 +52,15 @@ def _run_cline_triage(*, prompt: str, timeout: int) -> str:
     if not cline_available():
         raise RuntimeError("Local `cline` was not found on PATH.")
     try:
-        completed = subprocess.run(
-            ["cline", prompt],
-            capture_output=True,
-            text=True,
-            check=False,
-            timeout=timeout,
-        )
+        with tempfile.TemporaryDirectory(prefix="neonape-cline-") as workspace:
+            completed = subprocess.run(
+                ["cline", prompt],
+                capture_output=True,
+                text=True,
+                check=False,
+                timeout=timeout,
+                cwd=workspace,
+            )
     except subprocess.TimeoutExpired as exc:
         raise RuntimeError(f"Cline triage timed out after {timeout} seconds.") from exc
 
