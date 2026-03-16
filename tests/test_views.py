@@ -1,6 +1,7 @@
 from pathlib import Path
 
 from neon_ape.ui.views import (
+    build_angel_eyes_table,
     build_domain_summary_panel,
     build_naabu_table,
     build_nuclei_table,
@@ -72,6 +73,7 @@ def test_domain_and_review_summary_panels_include_web_path_counts() -> None:
         "notes": [],
         "inventory": [],
         "reviews": [],
+        "angel_eyes": {"items": [{"path": "/.env", "risk_score": 95}], "grouped": {}},
         "web_paths": {"katana": [{"host": "a", "value": "crawl"}], "gobuster": [{"host": "/admin", "value": "301"}]},
     }
     domain_panel = build_domain_summary_panel("example.com", overview)
@@ -80,3 +82,22 @@ def test_domain_and_review_summary_panels_include_web_path_counts() -> None:
     assert "Gobuster Paths" in str(domain_panel.renderable)
     assert "Katana Paths" in str(review_panel.renderable)
     assert "Gobuster Paths" in str(review_panel.renderable)
+    assert "Angel Eyes" in str(review_panel.renderable)
+
+
+def test_build_angel_eyes_table_renders_risk_and_sources() -> None:
+    table = build_angel_eyes_table(
+        [
+            {
+                "host": "app.example.com",
+                "path": "/.env",
+                "status": "200",
+                "length": 42,
+                "source_tools": ["gobuster", "nuclei"],
+                "risk_score": 95,
+            }
+        ],
+        "Secrets",
+    )
+    assert table.columns[1]._cells == ["/.env"]
+    assert table.columns[4]._cells == ["gobuster,nuclei"]

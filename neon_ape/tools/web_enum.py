@@ -1,10 +1,12 @@
 from __future__ import annotations
 
 from pathlib import Path
+import re
 from urllib.parse import urlparse
 
 from neon_ape.services.validation import validate_url_or_target
 from neon_ape.tools.base import ToolResult, run_command
+from neon_ape.tools.web_paths import enrich_web_path_findings
 
 
 DEFAULT_WORDLISTS = (
@@ -69,8 +71,18 @@ def parse_gobuster_output(output_path: Path) -> list[dict[str, str]]:
             path_part, status_part = line.split("Status:", 1)
             path_value = path_part.strip()
             status_value = status_part.strip()
-            findings.append({"type": "web_path", "host": path_value, "key": path_value, "value": status_value})
-    return findings
+            parsed = _parse_gobuster_status(status_value)
+            findings.append(
+                {
+                    "type": "web_path",
+                    "host": path_value,
+                    "key": path_value,
+                    "value": status_value,
+                    "status_code": parsed.get("status_code", ""),
+                    "content_length": parsed.get("content_length", ""),
+                }
+            )
+    return enrich_web_path_findings("gobuster", findings)
 
 
 def _detect_wordlist() -> str | None:
@@ -87,3 +99,12 @@ def _normalize_gobuster_target(target: str) -> str:
     if parsed.scheme in {"http", "https"} and parsed.netloc:
         return validated
     return f"https://{validated}"
+
+
+def _parse_gobuster_status(value: str) -> dict[str, str]:
+    status_match = re.search(r"(\d{3})", value)
+    length_match = re.search(r"(?:Length|Size):\s*(\d+)", value, re.IGNORECASE)
+    return {
+        "status_code": status_match.group(1) if status_match else "",
+        "content_length": length_match.group(1) if length_match else "",
+    }

@@ -149,6 +149,13 @@ def test_parse_review_cline_provider_command() -> None:
     assert args.llm_provider == "cline"
 
 
+def test_parse_review_web_paths_command() -> None:
+    parser = build_parser()
+    args = parser.parse_args(["review", "--target", "example.com", "--web-paths"])
+    assert args.command == "review"
+    assert args.web_paths is True
+
+
 def test_parse_export_command() -> None:
     parser = build_parser()
     args = parser.parse_args(["export", "scans", "--output", "scans.json", "--format", "json", "--limit", "10"])

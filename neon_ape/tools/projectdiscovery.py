@@ -5,6 +5,7 @@ from pathlib import Path
 from urllib.parse import urlparse
 
 from neon_ape.tools.base import ToolResult, run_command
+from neon_ape.tools.web_paths import enrich_web_path_findings
 from neon_ape.services.validation import validate_domain, validate_target, validate_url_or_target
 
 
@@ -138,7 +139,7 @@ def parse_projectdiscovery_output(tool_name: str, output_path: Path) -> list[dic
                 findings.append({"type": "raw_output", "value": line})
                 continue
             findings.extend(_parse_payload(tool_name, payload))
-    return _deduplicate_findings(findings)
+    return _deduplicate_findings(enrich_web_path_findings(tool_name, findings))
 
 
 def _parse_payload(tool_name: str, payload: dict[str, object]) -> list[dict[str, str]]:
@@ -163,6 +164,7 @@ def _parse_payload(tool_name: str, payload: dict[str, object]) -> list[dict[str,
         webserver = str(payload.get("webserver", ""))
         ip = str(payload.get("host", payload.get("ip", "")))
         content_type = str(payload.get("content_type", ""))
+        content_length = str(payload.get("content_length", payload.get("content-length", "")))
         parsed = urlparse(url)
         port = str(parsed.port or (443 if parsed.scheme == "https" else 80 if parsed.scheme == "http" else ""))
         scheme = parsed.scheme
@@ -180,6 +182,7 @@ def _parse_payload(tool_name: str, payload: dict[str, object]) -> list[dict[str,
                 "webserver": webserver,
                 "ip": ip,
                 "content_type": content_type,
+                "content_length": content_length,
                 "port": port,
                 "scheme": scheme,
                 "product": product,

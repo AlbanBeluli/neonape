@@ -6,12 +6,15 @@ import re
 import sqlite3
 from urllib.parse import urlparse
 
+from neon_ape.services.storage import ensure_scan_findings_columns
+from neon_ape.tools.web_paths import build_web_path_review_items, correlate_sensitive_paths, grouped_sensitive_paths
 from neon_ape.tools.base import ToolResult
 
 
 def initialize_database(connection: sqlite3.Connection, schema_path: Path) -> None:
     with schema_path.open("r", encoding="utf-8") as handle:
         connection.executescript(handle.read())
+    ensure_scan_findings_columns(connection)
     _ensure_checklist_action_columns(connection)
     _backfill_intelligence(connection)
     connection.commit()
@@ -190,14 +193,16 @@ def record_scan(
     for finding in findings:
         connection.execute(
             """
-            INSERT INTO scan_findings (scan_run_id, finding_type, key, value, metadata_json)
-            VALUES (?, ?, ?, ?, ?)
+            INSERT INTO scan_findings (scan_run_id, finding_type, key, value, category, risk_score, metadata_json)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 scan_run_id,
                 finding.get("type", "unknown"),
                 finding.get("key", finding.get("host", finding.get("value", ""))),
                 finding.get("value", ""),
+                finding.get("category"),
+                _to_int(finding.get("risk_score")),
                 json.dumps(finding, sort_keys=True),
             ),
         )
@@ -254,7 +259,7 @@ def recent_findings(
     finding_type: str | None = None,
 ) -> list[dict[str, str | int | None]]:
     query = """
-        SELECT id, scan_run_id, finding_type, key, value
+        SELECT id, scan_run_id, finding_type, key, value, category, risk_score
         FROM scan_findings
     """
     params: list[str | int] = []
@@ -353,7 +358,7 @@ def domain_overview(
     ).fetchall()
     findings = connection.execute(
         """
-        SELECT sf.id, sf.scan_run_id, sf.finding_type, sf.key, sf.value
+        SELECT sf.id, sf.scan_run_id, sf.finding_type, sf.key, sf.value, sf.category, sf.risk_score
         FROM scan_findings sf
         LEFT JOIN scan_runs sr ON sr.id = sf.scan_run_id
         WHERE sr.target LIKE ?
@@ -371,12 +376,15 @@ def domain_overview(
             sf.id,
             sf.scan_run_id,
             sr.tool_name,
+            sf.finding_type,
             sf.key,
             sf.value,
+            sf.category,
+            sf.risk_score,
             sf.metadata_json
         FROM scan_findings sf
         LEFT JOIN scan_runs sr ON sr.id = sf.scan_run_id
-        WHERE sf.finding_type = 'web_path'
+        WHERE sf.category IS NOT NULL
           AND (
                 sr.target LIKE ?
              OR sf.key LIKE ?
@@ -428,6 +436,7 @@ def domain_overview(
         "scans": [dict(row) for row in scans],
         "findings": [dict(row) for row in findings],
         "web_paths": _split_web_paths([dict(row) for row in web_paths]),
+        "angel_eyes": _angel_eyes_overview([dict(row) for row in web_paths]),
         "notes": [dict(row) for row in notes],
         "inventory": _dedupe_inventory_rows([dict(row) for row in inventory]),
         "reviews": _dedupe_review_rows([dict(row) for row in reviews]),
@@ -443,8 +452,9 @@ def review_overview(
     overview = domain_overview(connection, target, limit=limit)
     return {
         "inventory": overview["inventory"],
-        "reviews": overview["reviews"],
+        "reviews": _dedupe_review_rows([*overview["reviews"], *build_web_path_review_items(overview["angel_eyes"]["items"])]),
         "web_paths": overview["web_paths"],
+        "angel_eyes": overview["angel_eyes"],
     }
 
 
@@ -468,9 +478,26 @@ def _split_web_paths(rows: list[dict[str, str | int | None]]) -> dict[str, list[
                 "key": str(row.get("key", host)),
                 "value": value,
                 "tool_name": tool_name,
+                "category": str(metadata.get("category", row.get("category", "")) or ""),
+                "risk_score": _to_int(metadata.get("risk_score", row.get("risk_score"))),
+                "status_code": metadata.get("status_code", ""),
+                "content_length": metadata.get("content_length", ""),
             }
         )
     return result
+
+
+def _angel_eyes_overview(rows: list[dict[str, object]]) -> dict[str, object]:
+    prepared: list[dict[str, object]] = []
+    for row in rows:
+        payload = dict(row)
+        payload["metadata"] = _load_metadata_json(row.get("metadata_json"))
+        prepared.append(payload)
+    items = correlate_sensitive_paths(prepared)
+    return {
+        "items": items,
+        "grouped": grouped_sensitive_paths(items),
+    }
 
 
 def _load_metadata_json(value: object) -> dict[str, object]:
@@ -902,7 +929,7 @@ def export_scan_bundle(
     for scan in scans:
         findings = connection.execute(
             """
-            SELECT finding_type, key, value, metadata_json
+            SELECT finding_type, key, value, category, risk_score, metadata_json
             FROM scan_findings
             WHERE scan_run_id = ?
             ORDER BY id ASC
@@ -941,14 +968,16 @@ def import_scan_bundle(connection: sqlite3.Connection, bundles: list[dict[str, o
         for finding in findings:
             connection.execute(
                 """
-                INSERT INTO scan_findings (scan_run_id, finding_type, key, value, metadata_json)
-                VALUES (?, ?, ?, ?, ?)
+                INSERT INTO scan_findings (scan_run_id, finding_type, key, value, category, risk_score, metadata_json)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     scan_run_id,
                     finding.get("finding_type", "imported"),
                     finding.get("key", ""),
                     finding.get("value", ""),
+                    finding.get("category"),
+                    finding.get("risk_score"),
                     finding.get("metadata_json", "{}"),
                 ),
             )

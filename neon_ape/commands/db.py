@@ -16,7 +16,9 @@ from neon_ape.db.repository import (
     recent_scans,
 )
 from neon_ape.ui.layout import build_checklist_table
+from neon_ape.ui.layout import build_angel_eyes_panel
 from neon_ape.ui.views import (
+    build_angel_eyes_table,
     build_domain_summary_panel,
     build_inventory_table,
     build_notes_table,
@@ -81,6 +83,7 @@ def run_db_view(
                 "scans": _sanitize_scans(overview["scans"], show_targets=show_targets),
                 "findings": overview["findings"],
                 "web_paths": overview["web_paths"],
+                "angel_eyes": overview["angel_eyes"],
                 "notes": overview["notes"],
                 "inventory": overview["inventory"],
                 "reviews": overview["reviews"],
@@ -88,6 +91,9 @@ def run_db_view(
             console.print_json(json.dumps(sanitized))
             return
         console.print(build_domain_summary_panel(domain_target, overview))
+        console.print(build_angel_eyes_panel(overview["angel_eyes"]))
+        for category in ("Secrets", "Logs", "Repo Metadata", "Server Config"):
+            console.print(build_angel_eyes_table(overview["angel_eyes"]["grouped"].get(category, []), category))
         console.print(build_scans_table(_sanitize_scans(overview["scans"], show_targets=show_targets), mask_targets=not show_targets))
         console.print(build_recent_findings_table(overview["findings"]))
         console.print(build_web_path_table(overview["web_paths"]["katana"], "katana"))

@@ -187,6 +187,8 @@ def run_sync(args: argparse.Namespace | SimpleNamespace, console: Console | None
     copied_artifacts = [] if getattr(args, "dry_run", False) else copy_scan_artifacts(overview.get("scans", []), scans_dir)
 
     findings_md = render_findings_markdown(target, scope, checklist, overview)
+    sensitive_paths_md = render_sensitive_paths_markdown(target, overview)
+    review_summary_md = render_review_summary_markdown(target, overview)
     notes_md = render_notes_markdown(target, notes, overview.get("notes", []), bool(args.notes_passphrase))
     canvas = build_attack_canvas(target, overview)
 
@@ -197,6 +199,8 @@ def run_sync(args: argparse.Namespace | SimpleNamespace, console: Console | None
                 f"[bold]Would write:[/bold]\n"
                 f"- {target_dir / 'Target.md'}\n"
                 f"- {target_dir / 'Findings.md'}\n"
+                f"- {target_dir / 'Sensitive-Paths.md'}\n"
+                f"- {target_dir / 'Review-Summary.md'}\n"
                 f"- {target_dir / 'Notes.md'}\n"
                 f"- {target_dir / 'Attack-Chain.canvas'}\n"
                 f"- {scans_dir}\n"
@@ -209,6 +213,8 @@ def run_sync(args: argparse.Namespace | SimpleNamespace, console: Console | None
         return 0
 
     (target_dir / "Findings.md").write_text(findings_md, encoding="utf-8")
+    (target_dir / "Sensitive-Paths.md").write_text(sensitive_paths_md, encoding="utf-8")
+    (target_dir / "Review-Summary.md").write_text(review_summary_md, encoding="utf-8")
     (target_dir / "Notes.md").write_text(notes_md, encoding="utf-8")
     (target_dir / "Attack-Chain.canvas").write_text(json.dumps(canvas, indent=2), encoding="utf-8")
 
@@ -411,7 +417,15 @@ def preview_scan_artifacts(scans: list[dict[str, Any]]) -> list[str]:
 
 
 def render_findings_markdown(target: str, scope: str, checklist: str, overview: dict[str, Any]) -> str:
+    headers = _frontmatter_block(
+        {
+            "target": target,
+            "generated": "findings",
+            "risk_scores": [int(item.get("risk_score", 0) or 0) for item in overview.get("angel_eyes", {}).get("items", [])[:12]],
+        }
+    )
     lines = [
+        headers,
         f"# Findings for {target}",
         "",
         f"- Scope: `{scope}`",
@@ -481,6 +495,91 @@ def render_findings_markdown(target: str, scope: str, checklist: str, overview: 
     return "\n".join(lines).strip() + "\n"
 
 
+def render_sensitive_paths_markdown(target: str, overview: dict[str, Any]) -> str:
+    angel_eyes = overview.get("angel_eyes", {})
+    grouped = angel_eyes.get("grouped", {}) if isinstance(angel_eyes, dict) else {}
+    lines = [
+        _frontmatter_block(
+            {
+                "target": target,
+                "generated": "sensitive-paths",
+                "risk_scores": [int(item.get("risk_score", 0) or 0) for item in angel_eyes.get("items", [])[:20]],
+            }
+        ),
+        f"# Sensitive Paths for {target}",
+        "",
+    ]
+    for category in ("Secrets", "Logs", "Repo Metadata", "Server Config"):
+        lines.extend(
+            [
+                f"## {category}",
+                "",
+                render_markdown_table(
+                    ["Host", "Path", "Status", "Length", "Source", "Risk"],
+                    [
+                        [
+                            str(item.get("host", "-")),
+                            str(item.get("path", "-")),
+                            str(item.get("status", "-")),
+                            str(item.get("length", "-") or "-"),
+                            ",".join(str(source) for source in item.get("source_tools", [])),
+                            str(item.get("risk_score", "-")),
+                        ]
+                        for item in grouped.get(category, [])
+                    ],
+                ),
+                "",
+            ]
+        )
+    return "\n".join(lines).strip() + "\n"
+
+
+def render_review_summary_markdown(target: str, overview: dict[str, Any]) -> str:
+    review_rows = overview.get("reviews", [])
+    lines = [
+        _frontmatter_block(
+            {
+                "target": target,
+                "generated": "review-summary",
+                "risk_scores": [int(item.get("risk_score", 0) or 0) for item in overview.get("angel_eyes", {}).get("items", [])[:20]],
+            }
+        ),
+        f"# Review Summary for {target}",
+        "",
+        "## Highest-Priority Findings",
+        "",
+        render_markdown_table(
+            ["Title", "Severity", "Source", "Host"],
+            [
+                [
+                    str(item.get("title", "-")),
+                    str(item.get("severity", "-")),
+                    str(item.get("source_tool", "-")),
+                    str(item.get("host", "-")),
+                ]
+                for item in review_rows
+            ],
+        ),
+        "",
+        "## Angel Eyes",
+        "",
+        render_markdown_table(
+            ["Host", "Path", "Category", "Risk", "Sources"],
+            [
+                [
+                    str(item.get("host", "-")),
+                    str(item.get("path", "-")),
+                    str(item.get("category", "-")),
+                    str(item.get("risk_score", "-")),
+                    ",".join(str(source) for source in item.get("source_tools", [])),
+                ]
+                for item in overview.get("angel_eyes", {}).get("items", [])
+            ],
+        ),
+    ]
+    return "\n".join(lines).strip() + "\n"
+
+
 def render_notes_markdown(
     target: str,
     notes: list[dict[str, str]],
@@ -520,6 +619,12 @@ def render_markdown_table(headers: list[str], rows: list[list[str]]) -> str:
     separator = "| " + " | ".join("---" for _ in headers) + " |"
     body_rows = ["| " + " | ".join(row) + " |" for row in rows]
     return "\n".join([header_row, separator, *body_rows])
+
+
+def _frontmatter_block(values: dict[str, Any]) -> str:
+    payload = dict(values)
+    payload["date"] = os.environ.get("NEONAPE_EXPORT_DATE", "local")
+    return f"---\n{yaml.safe_dump(payload, sort_keys=False).strip()}\n---\n"
 
 
 def build_attack_canvas(target: str, overview: dict[str, Any]) -> dict[str, Any]:

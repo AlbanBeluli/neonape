@@ -9,6 +9,7 @@ from rich.panel import Panel
 
 from neon_ape.db.repository import get_checklist_item, mark_checklist_item_status, record_scan
 from neon_ape.services.validation import validate_target
+from neon_ape.tools.web_paths import correlate_sensitive_paths, grouped_sensitive_paths
 from neon_ape.tools.nmap import build_nmap_command, execute_nmap, parse_nmap_xml, render_command_preview
 from neon_ape.tools.projectdiscovery import (
     build_projectdiscovery_batch_command,
@@ -17,8 +18,9 @@ from neon_ape.tools.projectdiscovery import (
     parse_projectdiscovery_output,
 )
 from neon_ape.tools.web_enum import build_gobuster_command, execute_gobuster, parse_gobuster_output
+from neon_ape.ui.layout import build_angel_eyes_panel
 from neon_ape.ui.theme import section_style
-from neon_ape.ui.views import build_missing_tools_panel, build_tool_output_table
+from neon_ape.ui.views import build_angel_eyes_table, build_missing_tools_panel, build_tool_output_table
 
 
 def run_checklist_step(
@@ -167,6 +169,7 @@ def run_projectdiscovery_tool(
     findings = parse_projectdiscovery_output(tool_name, output_path)
     record_scan(connection, result, findings)
     console.print(build_tool_output_table(tool_name, findings))
+    _render_angel_eyes(console, tool_name, findings)
     console.print(f"[bold green]{tool_name} exit code:[/bold green] {result.exit_code}")
     if result.exit_code != 0 and result.stderr:
         console.print(f"[bold red]{result.stderr}[/bold red]")
@@ -200,6 +203,7 @@ def run_gobuster(
     findings = parse_gobuster_output(output_path)
     record_scan(connection, result, findings)
     console.print(build_tool_output_table("gobuster", findings))
+    _render_angel_eyes(console, "gobuster", findings)
     console.print(f"[bold green]gobuster exit code:[/bold green] {result.exit_code}")
     if result.exit_code != 0 and result.stderr:
         console.print(f"[bold red]{result.stderr}[/bold red]")
@@ -228,6 +232,7 @@ def run_gobuster(
             retry_findings = parse_gobuster_output(output_path)
             record_scan(connection, retry_result, retry_findings)
             console.print(build_tool_output_table("gobuster", retry_findings))
+            _render_angel_eyes(console, "gobuster", retry_findings)
             console.print(f"[bold green]gobuster retry exit code:[/bold green] {retry_result.exit_code}")
             if retry_result.exit_code != 0 and retry_result.stderr:
                 console.print(f"[bold red]{retry_result.stderr}[/bold red]")
@@ -272,6 +277,7 @@ def run_projectdiscovery_batch_tool(
     findings = parse_projectdiscovery_output(tool_name, output_path)
     record_scan(connection, result, findings)
     console.print(build_tool_output_table(tool_name, findings))
+    _render_angel_eyes(console, tool_name, findings)
     console.print(f"[bold green]{tool_name} exit code:[/bold green] {result.exit_code}")
     if result.exit_code != 0 and result.stderr:
         console.print(f"[bold red]{result.stderr}[/bold red]")
@@ -474,6 +480,32 @@ def _prompt_gobuster_retry(console: Console, exclude_length: str) -> bool:
         f"`--exclude-length {exclude_length}`?[/bold cyan] [y/N]: "
     ).strip().lower()
     return answer in {"y", "yes"}
+
+
+def _render_angel_eyes(console: Console, tool_name: str, findings: list[dict[str, str]]) -> None:
+    if tool_name not in {"gobuster", "katana", "httpx", "nuclei"}:
+        return
+    rows = [
+        {
+            "tool_name": tool_name,
+            "finding_type": finding.get("type", ""),
+            "key": finding.get("key", ""),
+            "value": finding.get("value", ""),
+            "category": finding.get("category", ""),
+            "risk_score": finding.get("risk_score", 0),
+            "metadata": finding,
+        }
+        for finding in findings
+        if finding.get("category")
+    ]
+    if not rows:
+        return
+    items = correlate_sensitive_paths(rows)
+    grouped = grouped_sensitive_paths(items)
+    console.print(build_angel_eyes_panel({"items": items, "grouped": grouped}))
+    for category in ("Secrets", "Logs", "Repo Metadata", "Server Config"):
+        if grouped.get(category):
+            console.print(build_angel_eyes_table(grouped[category], category))
 
 
 def _discover_subdomains(

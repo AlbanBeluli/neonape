@@ -10,3 +10,14 @@ def connect(db_path: Path) -> sqlite3.Connection:
     connection.row_factory = sqlite3.Row
     connection.execute("PRAGMA foreign_keys = ON")
     return connection
+
+
+def ensure_scan_findings_columns(connection: sqlite3.Connection) -> None:
+    columns = {
+        row["name"]
+        for row in connection.execute("PRAGMA table_info(scan_findings)").fetchall()
+    }
+    if "category" not in columns:
+        connection.execute("ALTER TABLE scan_findings ADD COLUMN category TEXT")
+    if "risk_score" not in columns:
+        connection.execute("ALTER TABLE scan_findings ADD COLUMN risk_score INTEGER")

@@ -61,7 +61,16 @@ def test_record_scan_persists_scan_and_findings() -> None:
         exit_code=0,
         raw_output_path="/tmp/httpx.jsonl",
     )
-    findings = [{"type": "http_service", "host": "https://example.com", "key": "https://example.com", "value": "200"}]
+    findings = [
+        {
+            "type": "http_service",
+            "host": "https://example.com/.env",
+            "key": "https://example.com/.env",
+            "value": "200",
+            "category": "Secrets",
+            "risk_score": "95",
+        }
+    ]
 
     record_scan(connection, result, findings)
 
@@ -70,6 +79,8 @@ def test_record_scan_persists_scan_and_findings() -> None:
     assert scans[0]["tool_name"] == "httpx"
     assert scans[0]["raw_output_path"] == "/tmp/httpx.jsonl"
     assert stored_findings[0]["finding_type"] == "http_service"
+    assert stored_findings[0]["category"] == "Secrets"
+    assert stored_findings[0]["risk_score"] == 95
 
 
 def test_recent_queries_support_filters() -> None:
@@ -173,7 +184,7 @@ def test_domain_overview_collects_scans_findings_and_notes() -> None:
     record_scan(
         connection,
         ToolResult(tool_name="httpx", target="pd_web_chain:stoic.ee:httpx", command=["httpx"], exit_code=0),
-        [{"type": "http_service", "host": "https://www.stoic.ee", "key": "https://www.stoic.ee", "value": "200"}],
+        [{"type": "http_service", "host": "https://www.stoic.ee/.env", "key": "https://www.stoic.ee/.env", "value": "200", "category": "Secrets", "risk_score": "95"}],
     )
     store_note(connection, target="stoic.ee", title="Portal", ciphertext=b"encrypted")
 
@@ -183,6 +194,8 @@ def test_domain_overview_collects_scans_findings_and_notes() -> None:
     assert len(overview["findings"]) == 1
     assert len(overview["notes"]) == 1
     assert len(overview["inventory"]) == 1
+    assert len(overview["angel_eyes"]["items"]) == 1
+    assert overview["angel_eyes"]["items"][0]["category"] == "Secrets"
 
 
 def test_recent_inventory_reviews_and_notes_support_filters() -> None:
@@ -227,12 +240,12 @@ def test_domain_and_review_overview_include_katana_and_gobuster_paths() -> None:
     record_scan(
         connection,
         ToolResult(tool_name="katana", target="https://app.example.com", command=["katana"], exit_code=0),
-        [{"type": "web_path", "host": "https://app.example.com/app.js", "key": "https://app.example.com/app.js", "value": "crawl"}],
+        [{"type": "web_path", "host": "https://app.example.com/.git/config", "key": "https://app.example.com/.git/config", "value": "crawl", "category": "Repo Metadata", "risk_score": "70"}],
     )
     record_scan(
         connection,
         ToolResult(tool_name="gobuster", target="https://app.example.com", command=["gobuster"], exit_code=0),
-        [{"type": "web_path", "host": "/admin", "key": "/admin", "value": "301"}],
+        [{"type": "web_path", "host": "/.env", "key": "/.env", "value": "200", "category": "Secrets", "risk_score": "95"}],
     )
 
     domain = domain_overview(connection, "app.example.com", limit=20)
@@ -240,8 +253,8 @@ def test_domain_and_review_overview_include_katana_and_gobuster_paths() -> None:
 
     assert len(domain["web_paths"]["katana"]) == 1
     assert len(domain["web_paths"]["gobuster"]) == 1
-    assert domain["web_paths"]["katana"][0]["host"] == "https://app.example.com/app.js"
-    assert domain["web_paths"]["gobuster"][0]["host"] == "/admin"
+    assert domain["web_paths"]["katana"][0]["host"] == "https://app.example.com/.git/config"
+    assert domain["web_paths"]["gobuster"][0]["host"] == "/.env"
     assert len(review["web_paths"]["katana"]) == 1
     assert len(review["web_paths"]["gobuster"]) == 1
 

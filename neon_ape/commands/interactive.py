@@ -365,6 +365,7 @@ def _prompt_review(console: Console, connection, config) -> str:
         _pause(console)
         return "Review limit input was invalid."
     llm_triage = Prompt.ask("[bold cyan]Local LLM triage[/bold cyan]", choices=["y", "n"], default="n") == "y"
+    web_paths_only = Prompt.ask("[bold cyan]Focus on Angel Eyes web exposure review[/bold cyan]", choices=["y", "n"], default="y") == "y"
     llm_provider = config.llm_provider
     llm_model = config.llm_model
     if llm_triage:
@@ -374,10 +375,20 @@ def _prompt_review(console: Console, connection, config) -> str:
             if llm_model_value is None:
                 return "Returned from review summary."
             llm_model = llm_model_value
-    run_review(console, connection, target=target, limit=limit, llm_triage=llm_triage, llm_provider=llm_provider, llm_model=llm_model)
+    run_review(
+        console,
+        connection,
+        target=target,
+        limit=limit,
+        llm_triage=llm_triage,
+        llm_provider=llm_provider,
+        llm_model=llm_model,
+        web_paths_only=web_paths_only,
+    )
     _pause(console)
     suffix = f" with local triage via {llm_provider}:{llm_model if llm_provider == 'ollama' else 'cline'}" if llm_triage else ""
-    return f"Reviewed {target}{suffix}."
+    focus = " (Angel Eyes)" if web_paths_only else ""
+    return f"Reviewed {target}{focus}{suffix}."
 
 
 def _prompt_config(console: Console, config) -> str:

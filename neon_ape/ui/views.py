@@ -293,12 +293,15 @@ def build_domain_summary_panel(target: str, overview: dict[str, list[dict[str, s
     web_paths = overview.get("web_paths", {})
     katana_count = len(web_paths.get("katana", [])) if isinstance(web_paths, dict) else 0
     gobuster_count = len(web_paths.get("gobuster", [])) if isinstance(web_paths, dict) else 0
+    angel_eyes = overview.get("angel_eyes", {})
+    angel_count = len(angel_eyes.get("items", [])) if isinstance(angel_eyes, dict) else 0
     body = (
         f"[bold]Query:[/bold] {target}\n"
         f"[bold]Scans:[/bold] {len(overview.get('scans', []))}\n"
         f"[bold]Findings:[/bold] {len(overview.get('findings', []))}\n"
         f"[bold]Katana Paths:[/bold] {katana_count}\n"
         f"[bold]Gobuster Paths:[/bold] {gobuster_count}\n"
+        f"[bold]Angel Eyes:[/bold] {angel_count}\n"
         f"[bold]Inventory:[/bold] {len(overview.get('inventory', []))}\n"
         f"[bold]Review Matches:[/bold] {len(overview.get('reviews', []))}\n"
         f"[bold]Notes:[/bold] {len(overview.get('notes', []))}"
@@ -358,11 +361,14 @@ def build_review_summary_panel(target: str, overview: dict[str, list[dict[str, s
     web_paths = overview.get("web_paths", {})
     katana_count = len(web_paths.get("katana", [])) if isinstance(web_paths, dict) else 0
     gobuster_count = len(web_paths.get("gobuster", [])) if isinstance(web_paths, dict) else 0
+    angel_eyes = overview.get("angel_eyes", {})
+    angel_count = len(angel_eyes.get("items", [])) if isinstance(angel_eyes, dict) else 0
     body = (
         f"[bold]Target:[/bold] {target}\n"
         f"[bold]Inventory Entries:[/bold] {len(overview.get('inventory', []))}\n"
         f"[bold]Katana Paths:[/bold] {katana_count}\n"
         f"[bold]Gobuster Paths:[/bold] {gobuster_count}\n"
+        f"[bold]Angel Eyes:[/bold] {angel_count}\n"
         f"[bold]Critical:[/bold] {critical}\n"
         f"[bold]High:[/bold] {high}\n"
         f"[bold]Medium:[/bold] {medium}"
@@ -393,6 +399,32 @@ def build_web_path_table(findings: list[dict[str, str | int | None]], tool_name:
     return table
 
 
+def build_angel_eyes_table(items: list[dict[str, object]], category: str | None = None) -> Table:
+    title = "Angel Eyes Findings" if not category else f"{category}"
+    table = Table(title=title, expand=False)
+    table.add_column("Host", style="bold")
+    table.add_column("Path")
+    table.add_column("Status")
+    table.add_column("Length")
+    table.add_column("Source Tool")
+    table.add_column("Risk")
+    if not items:
+        table.add_row("-", "-", "-", "-", "-", "-")
+        return table
+    for item in items:
+        sources = item.get("source_tools", [])
+        source_label = ",".join(str(source) for source in sources) if isinstance(sources, list) else str(sources)
+        table.add_row(
+            str(item.get("host", "-")),
+            str(item.get("path", "-")),
+            str(item.get("status", "-")),
+            str(item.get("length", "-") or "-"),
+            source_label or "-",
+            _risk_text(int(item.get("risk_score", 0) or 0)),
+        )
+    return table
+
+
 def _mask_target(value: str) -> str:
     if value in {"", "-"}:
         return value
@@ -412,3 +444,13 @@ def _severity_text(value: str) -> str:
     if normalized == "low":
         return "[green]low[/green]"
     return str(value)
+
+
+def _risk_text(value: int) -> str:
+    if value >= 90:
+        return f"[bold red]{value}[/bold red]"
+    if value >= 75:
+        return f"[red]{value}[/red]"
+    if value >= 55:
+        return f"[yellow]{value}[/yellow]"
+    return f"[green]{value}[/green]"

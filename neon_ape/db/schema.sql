@@ -38,6 +38,8 @@ CREATE TABLE IF NOT EXISTS scan_findings (
     finding_type TEXT NOT NULL,
     key TEXT NOT NULL,
     value TEXT NOT NULL,
+    category TEXT,
+    risk_score INTEGER,
     metadata_json TEXT NOT NULL DEFAULT '{}',
     FOREIGN KEY (scan_run_id) REFERENCES scan_runs(id)
 );

@@ -8,6 +8,7 @@ from neon_ape.tools.projectdiscovery import (
 )
 from neon_ape.tools.base import run_command
 from neon_ape.tools.web_enum import build_gobuster_command, parse_gobuster_output
+from neon_ape.tools.web_paths import correlate_sensitive_paths
 
 
 def test_parse_nmap_xml_extracts_host_and_port(tmp_path) -> None:
@@ -63,13 +64,14 @@ def test_parse_dnsx_jsonl_extracts_records(tmp_path) -> None:
 def test_parse_nuclei_jsonl_extracts_match_metadata(tmp_path) -> None:
     output = tmp_path / "nuclei.jsonl"
     output.write_text(
-        '{"template-id":"exposed-panel","info":{"name":"Exposed Panel","severity":"medium"},"matched-at":"https://example.com/login"}\n',
+        '{"template-id":"exposed-panel","info":{"name":"Exposed Panel","severity":"medium"},"matched-at":"https://example.com/.env"}\n',
         encoding="utf-8",
     )
     findings = parse_projectdiscovery_output("nuclei", output)
     assert findings[0]["type"] == "nuclei_finding"
     assert findings[0]["template_id"] == "exposed-panel"
     assert findings[0]["severity"] == "medium"
+    assert findings[0]["category"] == "Secrets"
 
 
 def test_parse_assetfinder_output_extracts_subdomains(tmp_path) -> None:
@@ -99,10 +101,11 @@ def test_parse_amass_plain_output_extracts_subdomains(tmp_path) -> None:
 
 def test_parse_katana_json_extracts_paths(tmp_path) -> None:
     output = tmp_path / "katana.jsonl"
-    output.write_text('{"request":{"endpoint":"https://example.com/app.js"},"source":"crawl"}\n', encoding="utf-8")
+    output.write_text('{"request":{"endpoint":"https://example.com/.git/config"},"source":"crawl"}\n', encoding="utf-8")
     findings = parse_projectdiscovery_output("katana", output)
     assert findings[0]["type"] == "web_path"
-    assert findings[0]["host"] == "https://example.com/app.js"
+    assert findings[0]["host"] == "https://example.com/.git/config"
+    assert findings[0]["category"] == "Repo Metadata"
 
 
 def test_build_httpx_batch_command_creates_input_file(tmp_path) -> None:
@@ -124,11 +127,41 @@ def test_build_katana_batch_command_creates_input_file(tmp_path) -> None:
 
 def test_parse_gobuster_output_extracts_paths(tmp_path) -> None:
     output = tmp_path / "gobuster.txt"
-    output.write_text("/admin           Status: 301\n/assets          Status: 200\n", encoding="utf-8")
+    output.write_text("/.env           Status: 200 (Size: 42)\n/assets          Status: 200\n", encoding="utf-8")
     findings = parse_gobuster_output(output)
     assert findings[0]["type"] == "web_path"
-    assert findings[0]["host"] == "/admin"
-    assert findings[0]["value"] == "301"
+    assert findings[0]["host"] == "/.env"
+    assert findings[0]["category"] == "Secrets"
+    assert findings[0]["risk_score"] == "100"
+    assert findings[0]["status_code"] == "200"
+
+
+def test_correlate_sensitive_paths_combines_sources() -> None:
+    items = correlate_sensitive_paths(
+        [
+            {
+                "tool_name": "gobuster",
+                "finding_type": "web_path",
+                "key": "/.env",
+                "value": "200",
+                "category": "Secrets",
+                "risk_score": 95,
+                "metadata": {"normalized_path": "/.env", "host": "app.example.com", "status_code": "200", "content_length": "42", "source_tool": "gobuster"},
+            },
+            {
+                "tool_name": "nuclei",
+                "finding_type": "nuclei_finding",
+                "key": "exposed-env",
+                "value": "high exposed env",
+                "category": "Secrets",
+                "risk_score": 90,
+                "metadata": {"normalized_path": "/.env", "host": "app.example.com", "source_tool": "nuclei"},
+            },
+        ]
+    )
+    assert len(items) == 1
+    assert items[0]["risk_score"] >= 100 or items[0]["risk_score"] == 100
+    assert items[0]["source_tools"] == ["gobuster", "nuclei"]
 
 
 def test_build_gobuster_command_adds_https_to_bare_domain(tmp_path, monkeypatch) -> None:

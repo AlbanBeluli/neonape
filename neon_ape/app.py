@@ -48,6 +48,7 @@ class NeonApeApp:
         self.review_llm_triage = False
         self.review_llm_provider: str | None = None
         self.review_llm_model: str | None = None
+        self.review_web_paths_only = False
         self.db_limit = 20
         self.db_tool: str | None = None
         self.db_finding_type: str | None = None
@@ -170,6 +171,7 @@ class NeonApeApp:
                 llm_triage=self.review_llm_triage,
                 llm_provider=self.review_llm_provider or self.config.llm_provider,
                 llm_model=self.review_llm_model or self.config.llm_model,
+                web_paths_only=self.review_web_paths_only,
             )
             return
 

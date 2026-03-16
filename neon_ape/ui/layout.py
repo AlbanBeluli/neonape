@@ -1,3 +1,4 @@
+from rich.panel import Panel
 from rich.table import Table
 
 
@@ -52,3 +53,25 @@ def build_interactive_actions() -> Table:
     table.add_row("12", "Obsidian sync")
     table.add_row("q", "Exit")
     return table
+
+
+def build_angel_eyes_panel(summary: dict[str, object]) -> Panel:
+    items = summary.get("items", []) if isinstance(summary, dict) else []
+    grouped = summary.get("grouped", {}) if isinstance(summary, dict) else {}
+    counts = {
+        "Secrets": len(grouped.get("Secrets", [])) if isinstance(grouped, dict) else 0,
+        "Logs": len(grouped.get("Logs", [])) if isinstance(grouped, dict) else 0,
+        "Repo Metadata": len(grouped.get("Repo Metadata", [])) if isinstance(grouped, dict) else 0,
+        "Server Config": len(grouped.get("Server Config", [])) if isinstance(grouped, dict) else 0,
+    }
+    highest = max((int(item.get("risk_score", 0) or 0) for item in items), default=0) if isinstance(items, list) else 0
+    body = (
+        f"[bold]Flagged Paths:[/bold] {len(items) if isinstance(items, list) else 0}\n"
+        f"[bold red]Secrets:[/bold red] {counts['Secrets']}\n"
+        f"[bold yellow]Logs:[/bold yellow] {counts['Logs']}\n"
+        f"[bold magenta]Repo Metadata:[/bold magenta] {counts['Repo Metadata']}\n"
+        f"[bold cyan]Server Config:[/bold cyan] {counts['Server Config']}\n"
+        f"[bold]Highest Risk:[/bold] {highest}\n"
+        "[italic]Generate review to produce defensive triage from Angel Eyes evidence.[/italic]"
+    )
+    return Panel.fit(body, title="Angel Eyes - Web Exposure Review", style="bold magenta")
