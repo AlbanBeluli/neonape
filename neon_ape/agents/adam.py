@@ -20,6 +20,7 @@ from neon_ape.commands.tools import (
 from neon_ape.db.repository import review_overview
 from neon_ape.obsidian_sync import resolve_vault_path, run_sync as run_obsidian_sync, sanitize_target_name
 from neon_ape.ui.layout import build_adam_completion_panel, build_adam_intro_panel
+from neon_ape.workflows.orchestrator import copy_daily_reports, is_macos, open_in_finder, speak_completion
 ADAM_REQUIRED_TOOLS = ("subfinder", "httpx", "katana", "gobuster", "nuclei")
 
 
@@ -159,6 +160,12 @@ def run_adam(
     findings_path = target_dir / "Findings.md"
     sensitive_paths_path = target_dir / "Sensitive-Paths.md"
     review_summary_path = target_dir / "Review-Summary.md"
+    daily_report_dir = copy_daily_reports(active_target, [findings_path, sensitive_paths_path, review_summary_path])
+    spoken_lines = speak_completion(highest_risk)
+    if is_macos():
+        console.print("[bold orange3]Daniel voice notification:[/bold orange3]")
+        for line in spoken_lines:
+            console.print(f"- {line}")
 
     console.print(
         build_adam_completion_panel(
@@ -167,13 +174,29 @@ def run_adam(
             findings_path=findings_path,
             sensitive_paths_path=sensitive_paths_path,
             review_summary_path=review_summary_path,
+            daily_report_dir=daily_report_dir,
         )
     )
-    _offer_open_results(console, findings_path, sensitive_paths_path, review_summary_path)
+    console.print(f"[bold cyan]Daily report folder:[/bold cyan] {daily_report_dir}")
+    _offer_open_results(console, findings_path, sensitive_paths_path, review_summary_path, daily_report_dir)
     return True
 
 
-def _offer_open_results(console: Console, findings_path: Path, sensitive_paths_path: Path, review_summary_path: Path) -> None:
+def _offer_open_results(
+    console: Console,
+    findings_path: Path,
+    sensitive_paths_path: Path,
+    review_summary_path: Path,
+    daily_report_dir: Path,
+) -> None:
+    if is_macos():
+        if not sys.stdin.isatty():
+            console.print("[bold cyan]Press Enter to open the daily report folder in Finder[/bold cyan]")
+            return
+        console.input("[bold cyan]Press Enter to open the daily report folder in Finder[/bold cyan]")
+        open_in_finder(daily_report_dir)
+        return
+
     opener = shutil.which("xdg-open")
     if not opener:
         return

@@ -90,13 +90,22 @@ def build_adam_intro_panel() -> Panel:
     return Panel.fit(body, title="Adam", style="bold red")
 
 
-def build_adam_completion_panel(*, target: str, highest_risk: int, findings_path: Path, sensitive_paths_path: Path, review_summary_path: Path) -> Panel:
+def build_adam_completion_panel(
+    *,
+    target: str,
+    highest_risk: int,
+    findings_path: Path,
+    sensitive_paths_path: Path,
+    review_summary_path: Path,
+    daily_report_dir: Path | None = None,
+) -> Panel:
     body = (
         f"{MISSION_COMPLETE_BANNER}\n\n"
         f"[bold red]Target:[/bold red] {target}\n"
         f"[bold orange3]Highest Risk Score:[/bold orange3] {highest_risk}\n"
         f"[bold]Findings.md:[/bold] {findings_path}\n"
         f"[bold]Sensitive-Paths.md:[/bold] {sensitive_paths_path}\n"
-        f"[bold]Review-Summary.md:[/bold] {review_summary_path}"
+        f"[bold]Review-Summary.md:[/bold] {review_summary_path}\n"
+        f"[bold]Daily Report Folder:[/bold] {daily_report_dir if daily_report_dir else '-'}"
     )
     return Panel.fit(body, title="Mission Complete", style="bold red")
