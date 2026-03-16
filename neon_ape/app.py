@@ -5,6 +5,7 @@ from rich.panel import Panel
 from rich.console import Console
 
 from neon_ape.agents.adam import run_adam
+from neon_ape.manuals.main_man import render_manual
 from neon_ape.commands.notes import run_add_note, run_notes_listing, run_view_note
 from neon_ape.commands.config import run_config_command
 from neon_ape.commands.review import run_review
@@ -39,6 +40,7 @@ class NeonApeApp:
         self.config = config or AppConfig.default()
         self.logger = None
         self.command: str | None = None
+        self.manual_topic: str | None = None
         self.db_command: str | None = None
         self.config_action: str | None = None
         self.config_key: str | None = None
@@ -87,6 +89,10 @@ class NeonApeApp:
         self.adam_target: str | None = None
 
     def run(self) -> None:
+        if self.command == "man":
+            render_manual(self.console, topic=self.manual_topic or "main")
+            return
+
         if self.command == "uninstall":
             run_uninstall(
                 self.console,
