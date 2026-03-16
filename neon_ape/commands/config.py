@@ -6,7 +6,7 @@ from rich.table import Table
 from neon_ape.config import AppConfig, load_user_config, save_user_config, update_user_config
 
 
-ALLOWED_KEYS = {"data_dir", "privacy_mode", "theme_name", "install_root", "bin_dir", "obsidian_vault_path", "llm_model"}
+ALLOWED_KEYS = {"data_dir", "privacy_mode", "theme_name", "install_root", "bin_dir", "obsidian_vault_path", "llm_provider", "llm_model"}
 
 
 def run_config_command(
@@ -27,6 +27,7 @@ def run_config_command(
             "install_root": str(config.install_root),
             "bin_dir": str(config.bin_dir),
             "obsidian_vault_path": str(config.obsidian_vault_path) if config.obsidian_vault_path else "",
+            "llm_provider": config.llm_provider,
             "llm_model": config.llm_model,
         }
         merged.update(current)
@@ -44,6 +45,7 @@ def run_config_command(
                     "install_root": str(config.install_root),
                     "bin_dir": str(config.bin_dir),
                     "obsidian_vault_path": str(config.obsidian_vault_path) if config.obsidian_vault_path else "",
+                    "llm_provider": config.llm_provider,
                     "llm_model": config.llm_model,
                 },
                 config.config_path,
@@ -72,6 +74,6 @@ def _build_config_table(values: dict[str, object]) -> Table:
     table = Table(title="Neon Ape Config", expand=False)
     table.add_column("Key", style="bold")
     table.add_column("Value")
-    for key in ("config_path", "data_dir", "privacy_mode", "theme_name", "install_root", "bin_dir", "obsidian_vault_path", "llm_model"):
+    for key in ("config_path", "data_dir", "privacy_mode", "theme_name", "install_root", "bin_dir", "obsidian_vault_path", "llm_provider", "llm_model"):
         table.add_row(key, str(values.get(key, "-")))
     return table

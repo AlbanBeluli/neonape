@@ -48,6 +48,7 @@ def build_parser() -> argparse.ArgumentParser:
             "  neonape review --target example.com\n\n"
             "  neonape review --target example.com --llm-triage\n"
             "  neonape review --target example.com --llm-triage --llm-model llama3.2:3b\n\n"
+            "  neonape review --target example.com --llm-triage --llm-provider cline\n\n"
             "Maintenance:\n"
             "  neonape update\n"
             "  neonape update --yes\n"
@@ -59,6 +60,7 @@ def build_parser() -> argparse.ArgumentParser:
             "  neonape config set privacy_mode false\n"
             "  neonape config set theme_name eva\n"
             "  neonape config set obsidian_vault_path ~/Documents/Obsidian\n\n"
+            "  neonape config set llm_provider cline\n"
             "  neonape config set llm_model qwen3.5:4b\n\n"
             "Obsidian:\n"
             "  neonape obsidian --target-note Pentests/example.com/Target.md\n"
@@ -118,6 +120,7 @@ def build_parser() -> argparse.ArgumentParser:
     review_parser.add_argument("--limit", type=int, default=50, help="Maximum number of rows per section to show.")
     review_parser.add_argument("--json", action="store_true", help="Emit JSON instead of Rich tables.")
     review_parser.add_argument("--llm-triage", action="store_true", help="Run local findings triage through Ollama after the standard review tables.")
+    review_parser.add_argument("--llm-provider", choices=("ollama", "cline"), help="Choose the local LLM provider for triage.")
     review_parser.add_argument("--llm-model", help="Override the configured local Ollama model for this run.")
     db_parser = subparsers.add_parser("db", help="Inspect stored SQLite data through built-in read-only views.")
     db_subparsers = db_parser.add_subparsers(dest="db_command", required=True)
@@ -249,6 +252,7 @@ def main() -> int:
     app.review_limit = getattr(args, "limit", 50) if args.command == "review" else 50
     app.review_json_output = getattr(args, "json", False) if args.command == "review" else False
     app.review_llm_triage = getattr(args, "llm_triage", False) if args.command == "review" else False
+    app.review_llm_provider = getattr(args, "llm_provider", None) if args.command == "review" else None
     app.review_llm_model = getattr(args, "llm_model", None) if args.command == "review" else None
     app.db_command = getattr(args, "db_command", None)
     app.db_limit = getattr(args, "limit", 20)

@@ -365,15 +365,18 @@ def _prompt_review(console: Console, connection, config) -> str:
         _pause(console)
         return "Review limit input was invalid."
     llm_triage = Prompt.ask("[bold cyan]Local LLM triage[/bold cyan]", choices=["y", "n"], default="n") == "y"
+    llm_provider = config.llm_provider
     llm_model = config.llm_model
     if llm_triage:
-        llm_model_value = _ask_text(console, "LLM model", default=config.llm_model)
-        if llm_model_value is None:
-            return "Returned from review summary."
-        llm_model = llm_model_value
-    run_review(console, connection, target=target, limit=limit, llm_triage=llm_triage, llm_model=llm_model)
+        llm_provider = Prompt.ask("[bold cyan]LLM provider[/bold cyan]", choices=["cline", "ollama"], default=config.llm_provider)
+        if llm_provider == "ollama":
+            llm_model_value = _ask_text(console, "LLM model", default=config.llm_model)
+            if llm_model_value is None:
+                return "Returned from review summary."
+            llm_model = llm_model_value
+    run_review(console, connection, target=target, limit=limit, llm_triage=llm_triage, llm_provider=llm_provider, llm_model=llm_model)
     _pause(console)
-    suffix = f" with local triage via {llm_model}" if llm_triage else ""
+    suffix = f" with local triage via {llm_provider}:{llm_model if llm_provider == 'ollama' else 'cline'}" if llm_triage else ""
     return f"Reviewed {target}{suffix}."
 
 

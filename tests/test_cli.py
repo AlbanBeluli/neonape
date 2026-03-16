@@ -141,6 +141,14 @@ def test_parse_review_llm_command() -> None:
     assert args.llm_model == "llama3.2:3b"
 
 
+def test_parse_review_cline_provider_command() -> None:
+    parser = build_parser()
+    args = parser.parse_args(["review", "--target", "example.com", "--llm-triage", "--llm-provider", "cline"])
+    assert args.command == "review"
+    assert args.llm_triage is True
+    assert args.llm_provider == "cline"
+
+
 def test_parse_export_command() -> None:
     parser = build_parser()
     args = parser.parse_args(["export", "scans", "--output", "scans.json", "--format", "json", "--limit", "10"])

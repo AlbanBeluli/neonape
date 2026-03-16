@@ -13,7 +13,7 @@ Neon Ape is a local-only Python terminal dashboard for lab-safe penetration test
 - Chained recon flows for light recon, deep recon, web triage, and JS-heavy targets
 - SQLite-backed checklist, scan history, findings, and encrypted notes
 - Config-backed Obsidian sync with vault auto-discovery and dry-run previews
-- Optional local findings triage through `ollama` with a configurable model
+- Optional local findings triage through `cline` or `ollama`, with a configurable local model when using Ollama
 
 This project does not automate brute force, exploitation, credential attacks, or post-exploitation activity.
 
@@ -97,7 +97,7 @@ $ neonape db scans --limit 3
 - Encrypted notes and local scan history
 - Import/export, uninstall, and DB inspection commands
 - Native `neonape obsidian`, `neonape config`, and `neonape update` maintenance flows
-- Local LLM triage via `ollama` with the model controlled by config or CLI
+- Local LLM triage via `cline` by default, with optional `ollama` model selection through config or CLI
 
 ## Package Layout
 
@@ -398,7 +398,7 @@ neonape review --target example.com --llm-triage
 neonape review --target example.com --llm-triage --llm-model llama3.2:3b
 ```
 
-This uses your local `ollama` install only. No remote API is involved. The default model is `qwen3.5:4b`, but you can switch to any locally installed model through `--llm-model` or `neonape config set llm_model ...`.
+This uses only local providers. `cline` is the default LLM triage provider. If you prefer `ollama`, set `neonape config set llm_provider ollama`; the default Ollama model is `qwen3.5:4b`, and you can switch to any locally installed model through `--llm-model` or `neonape config set llm_model ...`.
 
 Export and import:
 

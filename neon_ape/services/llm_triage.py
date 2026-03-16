@@ -9,11 +9,23 @@ def ollama_available() -> bool:
     return which("ollama") is not None
 
 
-def run_local_triage(*, target: str, overview: dict[str, object], model: str, timeout: int = 180) -> str:
+def cline_available() -> bool:
+    return which("cline") is not None
+
+
+def run_local_triage(*, target: str, overview: dict[str, object], provider: str, model: str, timeout: int = 180) -> str:
+    prompt = _build_triage_prompt(target=target, overview=overview)
+    normalized_provider = provider.strip().lower()
+    if normalized_provider == "ollama":
+        return _run_ollama_triage(prompt=prompt, model=model, timeout=timeout)
+    if normalized_provider == "cline":
+        return _run_cline_triage(prompt=prompt, timeout=timeout)
+    raise RuntimeError(f"Unsupported local LLM provider: {provider}")
+
+
+def _run_ollama_triage(*, prompt: str, model: str, timeout: int) -> str:
     if not ollama_available():
         raise RuntimeError("Local `ollama` was not found on PATH.")
-
-    prompt = _build_triage_prompt(target=target, overview=overview)
     try:
         completed = subprocess.run(
             ["ollama", "run", model, prompt],
@@ -32,6 +44,30 @@ def run_local_triage(*, target: str, overview: dict[str, object], model: str, ti
     result = completed.stdout.strip()
     if not result:
         raise RuntimeError("Ollama returned an empty triage result.")
+    return result
+
+
+def _run_cline_triage(*, prompt: str, timeout: int) -> str:
+    if not cline_available():
+        raise RuntimeError("Local `cline` was not found on PATH.")
+    try:
+        completed = subprocess.run(
+            ["cline", prompt],
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=timeout,
+        )
+    except subprocess.TimeoutExpired as exc:
+        raise RuntimeError(f"Cline triage timed out after {timeout} seconds.") from exc
+
+    if completed.returncode != 0:
+        stderr = completed.stderr.strip()
+        raise RuntimeError(stderr or f"Cline triage failed with exit code {completed.returncode}.")
+
+    result = completed.stdout.strip()
+    if not result:
+        raise RuntimeError("Cline returned an empty triage result.")
     return result
 
 

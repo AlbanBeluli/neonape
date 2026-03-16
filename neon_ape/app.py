@@ -46,6 +46,7 @@ class NeonApeApp:
         self.review_limit = 50
         self.review_json_output = False
         self.review_llm_triage = False
+        self.review_llm_provider: str | None = None
         self.review_llm_model: str | None = None
         self.db_limit = 20
         self.db_tool: str | None = None
@@ -167,6 +168,7 @@ class NeonApeApp:
                 limit=self.review_limit,
                 as_json=self.review_json_output,
                 llm_triage=self.review_llm_triage,
+                llm_provider=self.review_llm_provider or self.config.llm_provider,
                 llm_model=self.review_llm_model or self.config.llm_model,
             )
             return
