@@ -22,6 +22,7 @@ def run_review(
     llm_provider: str = "cline",
     llm_model: str = "qwen3.5:4b",
     web_paths_only: bool = False,
+    llm_progress: bool = True,
 ) -> None:
     overview = review_overview(connection, target, limit=limit)
     if as_json:
@@ -38,13 +39,16 @@ def run_review(
         console.print(build_review_findings_table(overview["reviews"]))
     if llm_triage:
         try:
-            with Progress(
-                SpinnerColumn(style="bold magenta"),
-                TextColumn("[bold cyan]Eva Unit-01 synchronization... Angel Eyes generating review[/bold cyan]"),
-                console=console,
-                transient=True,
-            ) as progress:
-                progress.add_task("triage", total=None)
+            if llm_progress:
+                with Progress(
+                    SpinnerColumn(style="bold magenta"),
+                    TextColumn("[bold cyan]Eva Unit-01 synchronization... Angel Eyes generating review[/bold cyan]"),
+                    console=console,
+                    transient=True,
+                ) as progress:
+                    progress.add_task("triage", total=None)
+                    triage = run_local_triage(target=target, overview=overview, provider=llm_provider, model=llm_model)
+            else:
                 triage = run_local_triage(target=target, overview=overview, provider=llm_provider, model=llm_model)
         except RuntimeError as exc:
             console.print(f"[bold red]{exc}[/bold red]")

@@ -63,6 +63,9 @@ def build_parser() -> argparse.ArgumentParser:
             "  neonape config set obsidian_vault_path ~/Documents/Obsidian\n\n"
             "  neonape config set llm_provider cline\n"
             "  neonape config set llm_model qwen3.5:4b\n\n"
+            "Adam:\n"
+            "  neonape adam\n"
+            "  neonape adam --target example.com\n\n"
             "Obsidian:\n"
             "  neonape obsidian --target-note Pentests/example.com/Target.md\n"
             "  neonape obsidian --target-note Pentests/example.com/Target.md --dry-run\n\n"
@@ -107,6 +110,8 @@ def build_parser() -> argparse.ArgumentParser:
     config_set = config_subparsers.add_parser("set", help="Set a config key in ~/.config/neonape/config.toml.")
     config_set.add_argument("key", help="Config key to change.")
     config_set.add_argument("value", help="New value for the config key.")
+    adam_parser = subparsers.add_parser("adam", help="Run Adam, the autonomous web review orchestrator.")
+    adam_parser.add_argument("--target", help="Seed domain for Adam. If omitted, Neon Ape prompts for a domain.")
     obsidian_parser = subparsers.add_parser("obsidian", help="Sync Neon Ape data into an Obsidian vault.")
     obsidian_parser.add_argument("--vault-path", help="Absolute path to the vault root. Falls back to config or current vault.")
     obsidian_parser.add_argument("--target-note", required=True, help="Path to the source Markdown note relative to the vault.")
@@ -283,6 +288,7 @@ def main() -> int:
     app.obsidian_open = getattr(args, "open", False) if args.command == "obsidian" else False
     app.obsidian_dry_run = getattr(args, "dry_run", False) if args.command == "obsidian" else False
     app.obsidian_skip_run = getattr(args, "skip_run", False) if args.command == "obsidian" else False
+    app.adam_target = getattr(args, "target", None) if args.command == "adam" else None
     app.target = args.target
     app.profile = args.profile
     app.run_nmap = args.run_nmap

@@ -4,6 +4,8 @@ PALETTE = {
     "accent": "bold bright_magenta",
     "green": "bold bright_green",
     "orange": "bold bright_yellow",
+    "red": "bold bright_red",
+    "ember": "bold orange3",
 }
 
 

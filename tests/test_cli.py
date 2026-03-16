@@ -156,6 +156,13 @@ def test_parse_review_web_paths_command() -> None:
     assert args.web_paths is True
 
 
+def test_parse_adam_command() -> None:
+    parser = build_parser()
+    args = parser.parse_args(["adam", "--target", "example.com"])
+    assert args.command == "adam"
+    assert args.target == "example.com"
+
+
 def test_parse_export_command() -> None:
     parser = build_parser()
     args = parser.parse_args(["export", "scans", "--output", "scans.json", "--format", "json", "--limit", "10"])

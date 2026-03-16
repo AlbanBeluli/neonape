@@ -1,5 +1,9 @@
+from pathlib import Path
+
 from rich.panel import Panel
 from rich.table import Table
+
+from neon_ape.ui.ascii import ADAM_BANNER, MISSION_COMPLETE_BANNER
 
 
 def build_main_menu() -> Table:
@@ -75,3 +79,24 @@ def build_angel_eyes_panel(summary: dict[str, object]) -> Panel:
         "[italic]Generate review to produce defensive triage from Angel Eyes evidence.[/italic]"
     )
     return Panel.fit(body, title="Angel Eyes - Web Exposure Review", style="bold magenta")
+
+
+def build_adam_intro_panel() -> Panel:
+    body = (
+        f"{ADAM_BANNER}\n\n"
+        "[bold red]I am Adam, the First Angel. I shall begin the reconnaissance.[/bold red]\n"
+        "[bold orange3]Adam is awakening Unit-01...[/bold orange3]"
+    )
+    return Panel.fit(body, title="Adam", style="bold red")
+
+
+def build_adam_completion_panel(*, target: str, highest_risk: int, findings_path: Path, sensitive_paths_path: Path, review_summary_path: Path) -> Panel:
+    body = (
+        f"{MISSION_COMPLETE_BANNER}\n\n"
+        f"[bold red]Target:[/bold red] {target}\n"
+        f"[bold orange3]Highest Risk Score:[/bold orange3] {highest_risk}\n"
+        f"[bold]Findings.md:[/bold] {findings_path}\n"
+        f"[bold]Sensitive-Paths.md:[/bold] {sensitive_paths_path}\n"
+        f"[bold]Review-Summary.md:[/bold] {review_summary_path}"
+    )
+    return Panel.fit(body, title="Mission Complete", style="bold red")

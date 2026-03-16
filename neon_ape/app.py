@@ -4,6 +4,7 @@ from types import SimpleNamespace
 from rich.panel import Panel
 from rich.console import Console
 
+from neon_ape.agents.adam import run_adam
 from neon_ape.commands.notes import run_add_note, run_notes_listing, run_view_note
 from neon_ape.commands.config import run_config_command
 from neon_ape.commands.review import run_review
@@ -83,6 +84,7 @@ class NeonApeApp:
         self.show_checklist = False
         self.show_targets = False
         self.workflow: str | None = None
+        self.adam_target: str | None = None
 
     def run(self) -> None:
         if self.command == "uninstall":
@@ -127,6 +129,24 @@ class NeonApeApp:
             )
             if status != 0:
                 raise SystemExit(status)
+            return
+
+        if self.command == "adam":
+            self.config.ensure_directories()
+            self.logger = configure_logger(self.config.log_path)
+            connection = connect(self.config.db_path)
+            initialize_database(connection, self.config.schema_path)
+            seed_checklist_from_file(connection, self.config.checklist_path)
+            detected_tools = detect_installed_tools()
+            success = run_adam(
+                self.console,
+                connection,
+                config=self.config,
+                detected_tools=detected_tools,
+                target=self.adam_target,
+            )
+            if not success:
+                raise SystemExit(1)
             return
 
         self.config.ensure_directories()

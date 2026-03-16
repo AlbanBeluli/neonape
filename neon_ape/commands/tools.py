@@ -182,6 +182,7 @@ def run_gobuster(
     *,
     target: str,
     scan_dir: Path,
+    interactive_retry: bool = True,
 ) -> bool:
     output_path = scan_dir / f"gobuster_{_safe_name(target)}.txt"
     try:
@@ -211,7 +212,10 @@ def run_gobuster(
         if hint:
             console.print(hint)
         details = _gobuster_wildcard_details(result.stderr)
-        if details and _prompt_gobuster_retry(console, details["content_length"]):
+        should_retry = False
+        if details:
+            should_retry = _prompt_gobuster_retry(console, details["content_length"]) if interactive_retry else True
+        if details and should_retry:
             console.print(
                 f"[bold cyan]Retrying gobuster with --exclude-length {details['content_length']}...[/bold cyan]"
             )
