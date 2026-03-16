@@ -18,11 +18,15 @@ from neon_ape.commands.tools import (
     run_gobuster,
     run_projectdiscovery_batch_tool,
 )
-from neon_ape.db.repository import checklist_summary, list_checklist_items, mark_checklist_item_status, review_overview
+from neon_ape.db.repository import checklist_summary, get_checklist_item, list_checklist_items, mark_checklist_item_status, record_scan, review_overview
 from neon_ape.obsidian_sync import resolve_vault_path, run_sync as run_obsidian_sync, sanitize_target_name
+from neon_ape.tools.base import ToolResult, run_command
+from neon_ape.tools.projectdiscovery import parse_projectdiscovery_output
 from neon_ape.ui.layout import build_adam_completion_panel, build_adam_intro_panel, build_magi_execution_table
 from neon_ape.workflows.orchestrator import copy_daily_reports, is_macos, open_in_finder, speak_completion
 ADAM_REQUIRED_TOOLS = ("subfinder", "httpx", "katana", "gobuster", "nuclei")
+ADAM_NUCLEI_TIMEOUT = 180
+ADAM_NUCLEI_SEVERITIES = "medium,high,critical"
 
 
 def run_adam(
@@ -105,11 +109,10 @@ def run_adam(
             console.print("[bold yellow]Adam completed with partial gobuster failures.[/bold yellow]")
 
         progress.update(task, description="Launching nuclei review")
-        nuclei_targets = _unique_targets(finding.get("host", "") for finding in katana_findings if finding.get("host")) or live_http_targets
-        nuclei_success, _ = run_projectdiscovery_batch_tool(
+        nuclei_targets = live_http_targets[:2]
+        nuclei_success, _ = _run_adam_nuclei_review(
             console,
             connection,
-            tool_name="nuclei",
             targets=nuclei_targets,
             scan_dir=config.scan_dir,
             workflow_name=f"{active_target}_adam_nuclei",
@@ -238,6 +241,9 @@ def _run_magi_checklist(
                     scan_dir=config.scan_dir,
                     profile="service_scan",
                 )
+                updated = get_checklist_item(connection, step_order) or {}
+                if str(updated.get("status", "todo")) not in {"done"}:
+                    mark_checklist_item_status(connection, step_order, "todo")
                 if action_tool is None and not item.get("action_tool"):
                     mark_checklist_item_status(connection, step_order, "done")
                     console.print(f"[bold cyan]Checklist step {step_order} completed.[/bold cyan]")
@@ -245,8 +251,8 @@ def _run_magi_checklist(
                 mark_checklist_item_status(connection, step_order, "done")
                 console.print(f"[bold cyan]Checklist step {step_order} marked done.[/bold cyan]")
             elif action == "skip":
-                mark_checklist_item_status(connection, step_order, "in_progress")
-                console.print(f"[bold yellow]Checklist step {step_order} left in progress.[/bold yellow]")
+                mark_checklist_item_status(connection, step_order, "todo")
+                console.print(f"[bold yellow]Checklist step {step_order} left as todo.[/bold yellow]")
             progress.advance(task)
 
     summary = checklist_summary(connection)
@@ -258,10 +264,9 @@ def _run_magi_checklist(
 
 
 def _prompt_checklist_action(console: Console, item: dict[str, object]) -> str:
-    has_action = bool(item.get("action_tool"))
-    default_choice = "run" if has_action else "done"
-    prompt = "Run now?" if has_action else "Mark done?"
-    choices = ["run", "skip", "done"] if has_action else ["done", "skip"]
+    default_choice = "run"
+    prompt = "Run now?"
+    choices = ["run", "skip", "done"]
     if not sys.stdin.isatty():
         return default_choice
     console.print(
@@ -308,3 +313,66 @@ def _offer_open_results(
         return
     for path in (findings_path, sensitive_paths_path, review_summary_path):
         subprocess.run([opener, str(path)], check=False)
+
+
+def _run_adam_nuclei_review(
+    console: Console,
+    connection,
+    *,
+    targets: list[str],
+    scan_dir: Path,
+    workflow_name: str,
+    history_target: str,
+) -> tuple[bool, list[dict[str, str]]]:
+    normalized_targets = _unique_targets(targets)
+    if not normalized_targets:
+        return False, []
+    output_path = scan_dir / f"nuclei_{workflow_name}.jsonl"
+    input_path = scan_dir / f"nuclei_{workflow_name}.input.txt"
+    input_path.write_text("\n".join(normalized_targets) + "\n", encoding="utf-8")
+    command = [
+        "nuclei",
+        "-jsonl",
+        "-severity",
+        ADAM_NUCLEI_SEVERITIES,
+        "-rl",
+        "20",
+        "-timeout",
+        "5",
+        "-l",
+        str(input_path),
+        "-o",
+        str(output_path),
+    ]
+    console.print(
+        f"[bold orange3]Adam is constraining nuclei for live orchestration:[/bold orange3] "
+        f"{', '.join(normalized_targets)}"
+    )
+    try:
+        result = run_command(
+            "nuclei",
+            history_target,
+            command,
+            timeout=ADAM_NUCLEI_TIMEOUT,
+            raw_output_path=str(output_path),
+        )
+    finally:
+        input_path.unlink(missing_ok=True)
+    findings = parse_projectdiscovery_output("nuclei", output_path)
+    record_scan(
+        connection,
+        ToolResult(
+            tool_name="nuclei",
+            target=history_target,
+            command=command,
+            stdout=result.stdout,
+            stderr=result.stderr,
+            exit_code=result.exit_code,
+            raw_output_path=str(output_path),
+        ),
+        findings,
+    )
+    console.print(f"[bold green]nuclei exit code:[/bold green] {result.exit_code}")
+    if result.exit_code != 0 and result.stderr:
+        console.print(f"[bold yellow]{result.stderr}[/bold yellow]")
+    return result.exit_code == 0, findings
