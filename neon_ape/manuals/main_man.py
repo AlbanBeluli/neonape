@@ -5,23 +5,25 @@ from rich.panel import Panel
 from rich.rule import Rule
 from rich.table import Table
 
+from neon_ape.manuals.adam_man import build_adam_manual
+from neon_ape.manuals.checklist_man import build_checklist_manual
 from neon_ape.ui.ascii import ADAM_BANNER
 
 
 def render_manual(console: Console, *, topic: str = "main") -> None:
     if topic == "adam":
-        console.print(_build_manual(title_suffix=": Adam"))
+        console.print(build_adam_manual())
         return
     if topic == "checklist":
-        console.print(_build_manual(title_suffix=": MAGI Checklist"))
+        console.print(build_checklist_manual())
         return
-    console.print(_build_manual())
+    console.print(build_main_manual())
 
 
-def _build_manual(*, title_suffix: str = "") -> Panel:
+def build_main_manual() -> Panel:
     content = Group(
         Panel.fit(
-            f"{ADAM_BANNER}\n\n[bold magenta]NEON APE OPERATOR MANUAL{title_suffix}[/bold magenta]\n"
+            f"{ADAM_BANNER}\n\n[bold magenta]NEON APE OPERATOR MANUAL[/bold magenta]\n"
             "[bold orange3]Eva-grade local operator workflow for Adam, MAGI, Angel Eyes, and encrypted reporting.[/bold orange3]",
             title="Manual Header",
             style="bold magenta",
@@ -44,8 +46,8 @@ def _section_name_synopsis() -> Group:
     body.add_column()
     body.add_row("NAME", "neonape - local-only Evangelion-inspired recon and review console")
     body.add_row("SYNOPSIS", "neonape adam --target example.com")
-    body.add_row("", "neonape review --target example.com --web-paths")
-    body.add_row("", "neonape db domain --target example.com")
+    body.add_row("", "neonape man adam")
+    body.add_row("", "neonape man checklist")
     return Group(Rule("NAME / SYNOPSIS", style="magenta"), body)
 
 
@@ -55,7 +57,7 @@ def _section_description() -> Group:
         Panel.fit(
             "Neon Ape keeps the workflow local: Adam orchestrates recon, Angel Eyes scores sensitive web paths, "
             "MAGI tracks checklist progress, and the report/export flow stays on disk under your control.\n\n"
-            "No telemetry. No web dashboard. No remote agent loop. Just a hardened terminal workflow.",
+            "Use this manual as the operator entrypoint. Use the dedicated Adam and checklist pages when you need narrower guidance.",
             border_style="orange3",
         ),
     )
@@ -79,10 +81,10 @@ def _section_commands() -> Group:
     table.add_column("Group", style="bold magenta")
     table.add_column("Command")
     table.add_column("Purpose")
-    table.add_row("Adam", "`neonape adam`", "Run the full operator flow")
+    table.add_row("Adam", "`neonape adam` / `neonape man adam`", "Run Adam or open Adam-specific operator docs")
     table.add_row("Workflows", "`neonape --workflow pd_web_chain --target example.com`", "Run chained recon quickly")
     table.add_row("Review / Angel Eyes", "`neonape review --target example.com --web-paths`", "See sensitive path scoring and review output")
-    table.add_row("MAGI Checklist", "`neonape --show-checklist --init-only`", "Inspect checklist state and attached actions")
+    table.add_row("MAGI Checklist", "`neonape man checklist` / `neonape --show-checklist --init-only`", "Learn or inspect checklist state and actions")
     table.add_row("Database", "`neonape db domain --target example.com`", "Inspect all stored evidence for a target")
     table.add_row("Utilities", "`neonape man` / `neonape update --yes`", "Open the manual or refresh the install")
     return Group(Rule("AVAILABLE COMMANDS", style="magenta"), table)
@@ -93,9 +95,9 @@ def _section_examples() -> Group:
     table.add_column("Scenario", style="bold magenta")
     table.add_column("Command")
     table.add_row("1. Adam full run", "`neonape adam --target stoic.ee`")
-    table.add_row("2. Quick web chain", "`neonape --workflow pd_web_chain --target example.com`")
-    table.add_row("3. Angel Eyes review", "`neonape review --target example.com --web-paths`")
-    table.add_row("4. MAGI step execution", "`neonape --checklist-step 9 --target 192.168.1.10`")
+    table.add_row("2. Adam operator docs", "`neonape man adam`")
+    table.add_row("3. MAGI checklist docs", "`neonape man checklist`")
+    table.add_row("4. Angel Eyes review", "`neonape review --target example.com --web-paths`")
     table.add_row("5. Daily report follow-up", "`neonape obsidian --target-note Pentests/example.com/Target.md --skip-run`")
     table.add_row("6. Stored evidence lookup", "`neonape db domain --target example.com`")
     return Group(Rule("DETAILED EXAMPLES", style="magenta"), table)
@@ -137,8 +139,8 @@ def _section_tips() -> Group:
     tips.add_column(style="bold magenta", no_wrap=True)
     tips.add_column()
     tips.add_row("1.", "Start with `neonape adam --target example.com` unless you need a narrower workflow.")
-    tips.add_row("2.", "Use `neonape review --target example.com --web-paths` after Gobuster or Katana-heavy runs.")
-    tips.add_row("3.", "Use `neonape db domain --target example.com` to verify what was actually stored.")
-    tips.add_row("4.", "Set an Obsidian vault once with `neonape config set obsidian_vault_path <path>`.")
-    tips.add_row("5.", "Use `neonape man` when onboarding another operator instead of a raw `-h` wall of text.")
+    tips.add_row("2.", "Use `neonape man adam` when onboarding an operator to Adam’s end-to-end flow.")
+    tips.add_row("3.", "Use `neonape man checklist` to understand MAGI step execution and status handling.")
+    tips.add_row("4.", "Use `neonape db domain --target example.com` to verify what was actually stored.")
+    tips.add_row("5.", "Set an Obsidian vault once with `neonape config set obsidian_vault_path <path>`.")
     return Group(Rule("TIPS & BEST PRACTICES", style="magenta"), tips)

@@ -15,10 +15,13 @@ def build_parser() -> argparse.ArgumentParser:
         epilog=(
             "Recommended:\n"
             "  neonape adam --target example.com\n\n"
+            "Manuals:\n"
+            "  neonape man\n"
+            "  neonape man adam\n"
+            "  neonape man checklist\n\n"
             "Adam:\n"
             "  neonape adam\n"
-            "  neonape adam --target example.com\n"
-            "  neonape man adam\n\n"
+            "  neonape adam --target example.com\n\n"
             "Workflows:\n"
             "  neonape --workflow pd_web_chain --target example.com\n"
             "  neonape --workflow light_recon --target example.com\n"
@@ -33,7 +36,6 @@ def build_parser() -> argparse.ArgumentParser:
             "  neonape db reviews --target example.com --severity high\n"
             "  neonape db checklist\n\n"
             "Maintenance:\n"
-            "  neonape man\n"
             "  neonape update --yes\n"
             "  neonape uninstall --purge-data --yes"
         ),
@@ -41,7 +43,9 @@ def build_parser() -> argparse.ArgumentParser:
     )
     subparsers = parser.add_subparsers(dest="command")
     man_parser = subparsers.add_parser("man", help="Open the Neon Ape operator manual.")
-    man_parser.add_argument("topic", nargs="?", default="main", choices=("main", "adam", "checklist"), help="Optional manual topic.")
+    man_subparsers = man_parser.add_subparsers(dest="man_topic")
+    man_subparsers.add_parser("adam", help="Open the dedicated Adam manual.")
+    man_subparsers.add_parser("checklist", help="Open the dedicated MAGI checklist manual.")
     update_parser = subparsers.add_parser("update", help="Refresh an install-managed Neon Ape copy in place.")
     update_parser.add_argument("--yes", action="store_true", help="Skip the confirmation prompt.")
     config_parser = subparsers.add_parser("config", help="Show or update Neon Ape user config.")
@@ -193,7 +197,7 @@ def main() -> int:
     args = build_parser().parse_args()
     app = NeonApeApp()
     app.command = args.command
-    app.manual_topic = getattr(args, "topic", None) if args.command == "man" else None
+    app.manual_topic = (getattr(args, "man_topic", None) or "main") if args.command == "man" else None
     app.config_action = getattr(args, "config_action", None)
     app.config_key = getattr(args, "key", None)
     app.config_value = getattr(args, "value", None)
