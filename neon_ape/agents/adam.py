@@ -10,6 +10,7 @@ from rich.console import Console
 from rich.progress import BarColumn, Progress, SpinnerColumn, TextColumn
 from rich.prompt import Prompt
 
+from neon_ape.agents.autoresearch import run_autoresearch
 from neon_ape.commands.review import run_review
 from neon_ape.commands.tools import (
     _discover_subdomains,
@@ -23,7 +24,7 @@ from neon_ape.obsidian_sync import resolve_vault_path, run_sync as run_obsidian_
 from neon_ape.tools.base import ToolResult, run_command
 from neon_ape.tools.projectdiscovery import parse_projectdiscovery_output
 from neon_ape.ui.layout import build_adam_completion_panel, build_adam_intro_panel, build_magi_execution_table
-from neon_ape.workflows.orchestrator import copy_daily_reports, is_macos, open_in_finder, speak_completion
+from neon_ape.workflows.orchestrator import build_daily_report_dir, copy_daily_reports, is_macos, open_in_finder, speak_completion
 ADAM_REQUIRED_TOOLS = ("subfinder", "httpx", "katana", "gobuster", "nuclei")
 ADAM_NUCLEI_TIMEOUT = 180
 ADAM_NUCLEI_SEVERITIES = "medium,high,critical"
@@ -36,6 +37,8 @@ def run_adam(
     config,
     detected_tools: dict[str, str],
     target: str | None = None,
+    autoresearch_enabled: bool = False,
+    autoresearch_target: str | None = None,
 ) -> bool:
     console.print(build_adam_intro_panel())
     active_target = (target or "").strip()
@@ -137,26 +140,40 @@ def run_adam(
         progress.advance(task)
 
     vault_path = resolve_vault_path(None, config)
+    overview = review_overview(connection, active_target, limit=100)
+    highest_risk = max((int(item.get("risk_score", 0) or 0) for item in overview.get("angel_eyes", {}).get("items", [])), default=0)
     if vault_path is None:
-        console.print("[bold yellow]Adam could not resolve an Obsidian vault. Export skipped.[/bold yellow]")
-        return True
-
-    console.print("[bold orange3]Synchronizing with Obsidian...[/bold orange3]")
-    status = run_obsidian_sync(
-        SimpleNamespace(
-            vault_path=str(vault_path),
-            target_note=active_target,
-            notes_passphrase=None,
-            limit=200,
-            open=False,
-            dry_run=False,
-            skip_run=True,
-        ),
-        console=console,
-    )
-    if status != 0:
-        console.print("[bold red]Adam finished recon, but Obsidian export failed.[/bold red]")
-        return False
+        console.print("[bold yellow]Adam could not resolve an Obsidian vault. Export will fall back to a local daily report folder.[/bold yellow]")
+        daily_report_dir = build_daily_report_dir(active_target)
+        daily_report_dir.mkdir(parents=True, exist_ok=True)
+        findings_path = daily_report_dir / "Findings.md"
+        sensitive_paths_path = daily_report_dir / "Sensitive-Paths.md"
+        review_summary_path = daily_report_dir / "Review-Summary.md"
+        _write_report_placeholder(findings_path, "Findings", active_target, highest_risk)
+        _write_report_placeholder(sensitive_paths_path, "Sensitive Paths", active_target, highest_risk)
+        _write_report_placeholder(review_summary_path, "Review Summary", active_target, highest_risk)
+    else:
+        console.print("[bold orange3]Synchronizing with Obsidian...[/bold orange3]")
+        status = run_obsidian_sync(
+            SimpleNamespace(
+                vault_path=str(vault_path),
+                target_note=active_target,
+                notes_passphrase=None,
+                limit=200,
+                open=False,
+                dry_run=False,
+                skip_run=True,
+            ),
+            console=console,
+        )
+        if status != 0:
+            console.print("[bold red]Adam finished recon, but Obsidian export failed.[/bold red]")
+            return False
+        target_dir = Path(vault_path) / "Pentests" / sanitize_target_name(active_target)
+        findings_path = target_dir / "Findings.md"
+        sensitive_paths_path = target_dir / "Sensitive-Paths.md"
+        review_summary_path = target_dir / "Review-Summary.md"
+        daily_report_dir = copy_daily_reports(active_target, [findings_path, sensitive_paths_path, review_summary_path])
 
     _seed_adam_completed_steps(connection)
     console.print("[bold orange3]Loading MAGI checklist sequence...[/bold orange3]")
@@ -167,14 +184,15 @@ def run_adam(
         detected_tools=detected_tools,
         target=active_target,
     )
-
-    overview = review_overview(connection, active_target, limit=100)
-    highest_risk = max((int(item.get("risk_score", 0) or 0) for item in overview.get("angel_eyes", {}).get("items", [])), default=0)
-    target_dir = Path(vault_path) / "Pentests" / sanitize_target_name(active_target)
-    findings_path = target_dir / "Findings.md"
-    sensitive_paths_path = target_dir / "Sensitive-Paths.md"
-    review_summary_path = target_dir / "Review-Summary.md"
-    daily_report_dir = copy_daily_reports(active_target, [findings_path, sensitive_paths_path, review_summary_path])
+    if autoresearch_enabled:
+        research_skill = autoresearch_target or ("angel-eyes" if highest_risk > 0 else "magi-checklist")
+        console.print(f"[bold orange3]Adam is beginning autoresearch on {research_skill}...[/bold orange3]")
+        run_autoresearch(
+            console,
+            config=config,
+            skill_target=research_skill,
+            daily_report_dir=daily_report_dir,
+        )
     spoken_lines = speak_completion(highest_risk, checklist_complete=checklist_success)
     if is_macos():
         console.print("[bold orange3]Daniel voice notification:[/bold orange3]")
@@ -194,6 +212,16 @@ def run_adam(
     console.print(f"[bold cyan]Daily report folder:[/bold cyan] {daily_report_dir}")
     _offer_open_results(console, findings_path, sensitive_paths_path, review_summary_path, daily_report_dir)
     return True
+
+
+def _write_report_placeholder(path: Path, title: str, target: str, highest_risk: int) -> None:
+    path.write_text(
+        f"# {title}\n\n"
+        f"- Target: `{target}`\n"
+        f"- Highest risk score observed: `{highest_risk}`\n"
+        "- Obsidian export was unavailable, so Adam wrote this local fallback artifact.\n",
+        encoding="utf-8",
+    )
 
 
 def _seed_adam_completed_steps(connection) -> None:

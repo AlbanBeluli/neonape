@@ -163,6 +163,41 @@ def test_parse_adam_command() -> None:
     assert args.target == "example.com"
 
 
+def test_parse_adam_autoresearch_command() -> None:
+    parser = build_parser()
+    args = parser.parse_args(["adam", "--autoresearch", "--autoresearch-target", "angel-eyes", "--target", "example.com"])
+    assert args.command == "adam"
+    assert args.autoresearch is True
+    assert args.autoresearch_target == "angel-eyes"
+
+
+def test_parse_autoresearch_command() -> None:
+    parser = build_parser()
+    args = parser.parse_args(
+        [
+            "autoresearch",
+            "--target",
+            "magi-checklist",
+            "--question",
+            "Does it stay practical?",
+            "--scenario",
+            "A new operator must continue quickly.",
+            "--iterations",
+            "4",
+            "--baseline-runs",
+            "8",
+            "--overnight",
+        ]
+    )
+    assert args.command == "autoresearch"
+    assert args.target == "magi-checklist"
+    assert args.question == ["Does it stay practical?"]
+    assert args.scenario == ["A new operator must continue quickly."]
+    assert args.iterations == 4
+    assert args.baseline_runs == 8
+    assert args.overnight is True
+
+
 def test_parse_export_command() -> None:
     parser = build_parser()
     args = parser.parse_args(["export", "scans", "--output", "scans.json", "--format", "json", "--limit", "10"])

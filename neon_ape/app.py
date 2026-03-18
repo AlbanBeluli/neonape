@@ -5,6 +5,7 @@ from rich.panel import Panel
 from rich.console import Console
 
 from neon_ape.agents.adam import run_adam
+from neon_ape.agents.autoresearch import run_autoresearch
 from neon_ape.manuals.main_man import render_manual
 from neon_ape.commands.notes import run_add_note, run_notes_listing, run_view_note
 from neon_ape.commands.config import run_config_command
@@ -87,6 +88,14 @@ class NeonApeApp:
         self.show_targets = False
         self.workflow: str | None = None
         self.adam_target: str | None = None
+        self.adam_autoresearch = False
+        self.adam_autoresearch_target: str | None = None
+        self.autoresearch_target: str | None = None
+        self.autoresearch_questions: list[str] = []
+        self.autoresearch_scenarios: list[str] = []
+        self.autoresearch_iterations = 6
+        self.autoresearch_baseline_runs = 8
+        self.autoresearch_overnight = False
 
     def run(self) -> None:
         if self.command == "man":
@@ -150,6 +159,25 @@ class NeonApeApp:
                 config=self.config,
                 detected_tools=detected_tools,
                 target=self.adam_target,
+                autoresearch_enabled=self.adam_autoresearch,
+                autoresearch_target=self.adam_autoresearch_target,
+            )
+            if not success:
+                raise SystemExit(1)
+            return
+
+        if self.command == "autoresearch":
+            self.config.ensure_directories()
+            self.logger = configure_logger(self.config.log_path)
+            success = run_autoresearch(
+                self.console,
+                config=self.config,
+                skill_target=self.autoresearch_target,
+                questions=self.autoresearch_questions,
+                scenarios=self.autoresearch_scenarios,
+                overnight=self.autoresearch_overnight,
+                iterations=self.autoresearch_iterations,
+                baseline_runs=self.autoresearch_baseline_runs,
             )
             if not success:
                 raise SystemExit(1)

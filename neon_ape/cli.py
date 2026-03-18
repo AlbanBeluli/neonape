@@ -21,7 +21,11 @@ def build_parser() -> argparse.ArgumentParser:
             "  neonape man checklist\n\n"
             "Adam:\n"
             "  neonape adam\n"
-            "  neonape adam --target example.com\n\n"
+            "  neonape adam --target example.com\n"
+            "  neonape adam --autoresearch --target example.com\n\n"
+            "Autoresearch:\n"
+            "  neonape autoresearch --target magi-checklist\n"
+            "  neonape autoresearch --target angel-eyes --overnight\n\n"
             "Workflows:\n"
             "  neonape --workflow pd_web_chain --target example.com\n"
             "  neonape --workflow light_recon --target example.com\n"
@@ -57,6 +61,15 @@ def build_parser() -> argparse.ArgumentParser:
     config_set.add_argument("value", help="New value for the config key.")
     adam_parser = subparsers.add_parser("adam", help="Run Adam, the autonomous web review orchestrator.")
     adam_parser.add_argument("--target", help="Seed domain for Adam. If omitted, Neon Ape prompts for a domain.")
+    adam_parser.add_argument("--autoresearch", action="store_true", help="Run autoresearch against MAGI Checklist or Angel Eyes after Adam finishes recon.")
+    adam_parser.add_argument("--autoresearch-target", choices=("magi-checklist", "angel-eyes", "nmap-wrappers", "ui-panels", "prompt-templates", "adam-workflow"), help="Optional explicit skill for Adam's autoresearch phase.")
+    autoresearch_parser = subparsers.add_parser("autoresearch", help="Run the local autoresearch loop against a Neon Ape skill.")
+    autoresearch_parser.add_argument("--target", choices=("magi-checklist", "angel-eyes", "nmap-wrappers", "ui-panels", "prompt-templates", "adam-workflow"), help="Skill target to improve.")
+    autoresearch_parser.add_argument("--question", action="append", default=[], help="Yes/no research question. Can be repeated up to six times.")
+    autoresearch_parser.add_argument("--scenario", action="append", default=[], help="Test scenario. Can be repeated up to five times.")
+    autoresearch_parser.add_argument("--iterations", type=int, default=6, help="Number of tiny-change iterations to evaluate.")
+    autoresearch_parser.add_argument("--baseline-runs", type=int, default=8, help="How many scoring runs to average for baseline and candidates.")
+    autoresearch_parser.add_argument("--overnight", action="store_true", help="Label the run as an overnight autonomous session in the dashboard and changelog.")
     obsidian_parser = subparsers.add_parser("obsidian", help="Sync Neon Ape data into an Obsidian vault.")
     obsidian_parser.add_argument("--vault-path", help="Absolute path to the vault root. Falls back to config or current vault.")
     obsidian_parser.add_argument("--target-note", required=True, help="Path to the source Markdown note relative to the vault.")
@@ -235,6 +248,14 @@ def main() -> int:
     app.obsidian_dry_run = getattr(args, "dry_run", False) if args.command == "obsidian" else False
     app.obsidian_skip_run = getattr(args, "skip_run", False) if args.command == "obsidian" else False
     app.adam_target = getattr(args, "target", None) if args.command == "adam" else None
+    app.adam_autoresearch = getattr(args, "autoresearch", False) if args.command == "adam" else False
+    app.adam_autoresearch_target = getattr(args, "autoresearch_target", None) if args.command == "adam" else None
+    app.autoresearch_target = getattr(args, "target", None) if args.command == "autoresearch" else None
+    app.autoresearch_questions = getattr(args, "question", []) if args.command == "autoresearch" else []
+    app.autoresearch_scenarios = getattr(args, "scenario", []) if args.command == "autoresearch" else []
+    app.autoresearch_iterations = getattr(args, "iterations", 6) if args.command == "autoresearch" else 6
+    app.autoresearch_baseline_runs = getattr(args, "baseline_runs", 8) if args.command == "autoresearch" else 8
+    app.autoresearch_overnight = getattr(args, "overnight", False) if args.command == "autoresearch" else False
     app.target = args.target
     app.profile = args.profile
     app.run_nmap = args.run_nmap

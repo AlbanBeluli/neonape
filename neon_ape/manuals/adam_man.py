@@ -19,6 +19,7 @@ def build_adam_manual() -> Panel:
         _adam_synopsis(),
         _adam_flow(),
         _adam_live_steps(),
+        _adam_autoresearch(),
         _adam_voice(),
         _adam_examples(),
         _adam_best_practices(),
@@ -85,12 +86,32 @@ def _adam_voice() -> Group:
     )
 
 
+def _adam_autoresearch() -> Group:
+    table = Table(title="Autoresearch Integration", expand=False)
+    table.add_column("Mode", style="bold red")
+    table.add_column("Command")
+    table.add_column("Result")
+    table.add_row("Standalone", "`neonape autoresearch --target magi-checklist`", "Researches one Neon Ape skill and writes backup/improved snapshots + changelog")
+    table.add_row("Adam-assisted", "`neonape adam --autoresearch --target example.com`", "Runs Adam first, then autoresearches MAGI Checklist or Angel Eyes")
+    table.add_row("Explicit skill", "`neonape adam --autoresearch --autoresearch-target angel-eyes --target example.com`", "Forces Adam to refine a specific post-run skill area")
+    return Group(
+        Rule("AUTORESEARCH", style="red"),
+        table,
+        Panel.fit(
+            "Autoresearch runs a bounded local loop: baseline scoring, one tiny change at a time, eight scoring passes per candidate, and keep-only-if-better behavior.\n\n"
+            "Artifacts land in the daily report folder with a backup, improved snapshot, JSON summary, and markdown changelog.",
+            border_style="orange3",
+        ),
+    )
+
+
 def _adam_examples() -> Group:
     table = Table(title="Adam Examples", expand=False)
     table.add_column("Scenario", style="bold red")
     table.add_column("Command")
     table.add_row("Full run", "`neonape adam --target stoic.ee`")
     table.add_row("Prompt for target", "`neonape adam`")
+    table.add_row("Adam + autoresearch", "`neonape adam --autoresearch --target stoic.ee`")
     table.add_row("Review saved results after run", "`neonape db domain --target stoic.ee`")
     table.add_row("Re-open the docs", "`neonape man adam`")
     return Group(Rule("EXAMPLES", style="red"), table)
@@ -102,5 +123,6 @@ def _adam_best_practices() -> Group:
     tips.add_column()
     tips.add_row("1.", "Use Adam as the primary entrypoint when you want the full local reporting loop.")
     tips.add_row("2.", "Let Adam seed MAGI steps it already completed so you only decide on remaining work.")
-    tips.add_row("3.", "Check Obsidian export paths and the daily report folder at the final mission screen.")
+    tips.add_row("3.", "Use `--autoresearch` when you want Adam to refine MAGI Checklist or Angel Eyes after a real run.")
+    tips.add_row("4.", "Check Obsidian export paths and the daily report folder at the final mission screen.")
     return Group(Rule("BEST PRACTICES", style="red"), tips)

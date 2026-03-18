@@ -45,6 +45,17 @@ def speak_completion(highest_risk: int, *, checklist_complete: bool = False) -> 
     return lines
 
 
+def speak_autoresearch_completion(start_score: float, end_score: float) -> list[str]:
+    lines = [
+        f"Autoresearch complete. Skill improved from {round(start_score, 2)} percent to {round(end_score, 2)} percent.",
+    ]
+    if not is_macos():
+        return lines
+    for line in lines:
+        subprocess.run(["say", "-v", "Daniel", line], check=False)
+    return lines
+
+
 def open_in_finder(path: Path) -> None:
     if not is_macos():
         return
