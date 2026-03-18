@@ -2,6 +2,27 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.9.3] - 2026-03-18
+
+### Added
+
+- `neonape checklist --target <domain> --auto` for fully automatic MAGI execution outside Adam
+- Internal MAGI runner module shared by Adam and standalone checklist execution
+- Automatic managed recon setup through `neonape setup tools --yes`
+- Built-in passive recon execution through `python -m neon_ape.tools.passive_recon whois|dns-a <target>`
+
+### Changed
+
+- Adam now enters the MAGI phase in automatic mode with no `Run now?` prompts
+- MAGI tool-backed steps now reuse automatic setup when required tools are missing
+- README front page now reflects the production workflow around Adam, Angel Eyes, MAGI, Autoresearch, and PDF reports
+- Nmap profiles now use `-Pn` and a shorter bounded timeout for checklist safety
+
+### Fixed
+
+- Nmap XML parsing no longer crashes when the XML file is empty, missing, or malformed
+- MAGI examples and checklist seed now use `<target>` instead of old hardcoded IP examples
+
 ## [0.4.0] - 2026-03-16
 
 ### Added

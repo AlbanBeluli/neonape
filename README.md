@@ -5,38 +5,59 @@
 
 **The self-evolving, Neon Genesis Evangelion-themed penetration testing dashboard.**
 
-One command. Full recon. MAGI Checklist. Angel Eyes review. Autoresearch that improves itself overnight. Beautiful PDF reports. Calm voice notifications. Everything local-only, encrypted, and operator-focused.
+One command. Full recon. Automatic MAGI Checklist. Angel Eyes review. Autoresearch that literally improves itself overnight. Beautiful PDFs. Calm voice notifications. Everything encrypted and local-only.
 
-Built for real OSCP and professional penetration testers who want a simple workflow with strong defaults.
+Built for real OSCP / professional pen-testers who want a simple, elite workflow.
 
 This project does not automate brute force, exploitation, credential attacks, or post-exploitation activity.
 
-## What Neon Ape Gives You
+## ✨ What Neon Ape Gives You
 
-- **Adam**  
-  `neonape adam --target example.com --pdf`  
-  Runs the full local workflow: recon, Angel Eyes review, MAGI checklist, daily report folder, and PDF output.
+- **Adam** – The First Angel  
+  `neonape adam --target example.com`  
+  Asks only for the domain and runs the entire pipeline automatically (subfinder → httpx → katana → gobuster → nuclei → Angel Eyes → MAGI Checklist → PDF).
 
-- **MAGI Checklist**  
-  Guided, step-by-step execution with stored progress, attached tool actions, and clear next steps.
+- **MAGI Checklist** (OSCP Black Book Chapters 3-5 style)  
+  Interactive step-by-step guides with nmap wrappers, Python tools, and encrypted progress tracking. Runs fully automatically from Adam.
 
-- **Angel Eyes**  
-  Sensitive path grouping, risk scoring, duplicate collapse, and defensive review output.
+- **Angel Eyes** – Web Exposure Guardian  
+  Groups sensitive paths (.env, .git, logs, etc.), risk scoring, defensive language only, grouped evidence.
 
-- **Autoresearch**  
+- **Autoresearch** (Karpathy-style self-improvement)  
   `neonape autoresearch --target angel-eyes --auto`  
-  Runs controlled local experiments, keeps only improvements, and stores skill history under `~/.neonape/skills/`.
+  Runs hundreds of experiments overnight, keeps only changes that improve objective score, saves permanently.
 
 - **Objective Oracles**  
-  Real scoring from live-host evidence, sensitive-path visibility, DB persistence, export creation, and review ordering.
+  Real measurements (live hosts, export files, DB saves, risk scoring, grouping) — no fake scoring.
 
 - **PDF Reports**  
-  NGE-styled PDF reports written into the daily report folder with summaries, oracle data, score charts, and diff context.
+  Clean NGE-themed PDFs auto-generated and opened on macOS.
 
 - **Live Status**  
-  `neonape status` shows current objective scores, last improved time, last run time, export signal, and overall health.
+  `neonape status` — real-time skill health dashboard.
+
+- **Daily Report Folders** + Obsidian fallback + Daniel voice notifications.
+
+Everything stays **100% local**, Fernet-encrypted, safe on Parrot OS or macOS.
 
 ## Quick Start
+
+```bash
+# One-time setup
+neonape setup tools --yes
+
+# The command you will use every day
+neonape adam --target stoic.ee --pdf
+
+# Or just review + PDF
+neonape autoresearch --target angel-eyes --auto --test-target stoic.ee --pdf
+
+# Check health
+neonape status
+
+# Full manual
+neonape man
+```
 
 Install from GitHub:
 
@@ -52,30 +73,24 @@ If your shell has not picked up `~/.local/bin` yet, run:
 ~/.local/bin/neonape-obsidian -h
 ```
 
-Recommended first commands:
-
-```bash
-neonape adam --target stoic.ee --pdf
-neonape autoresearch --target angel-eyes --auto --test-target stoic.ee --pdf
-neonape status
-neonape man
-neonape review --target example.com --llm-triage
-neonape db domain --target example.com
-```
-
 ## Core Commands
 
 | Command | What it does |
 | --- | --- |
-| `neonape adam --target <domain> --pdf` | Full autonomous run with daily report and PDF |
-| `neonape autoresearch --target <skill> --auto` | Let Neon Ape improve one skill locally |
+| `neonape adam --target <domain>` | Full autonomous run (recommended) |
+| `neonape autoresearch --target <skill>` | Let Neon Ape improve itself overnight |
 | `neonape status` | Live skill health dashboard |
-| `neonape man` | Eva-themed operator manual |
-| `neonape man adam` / `neonape man checklist` | Dedicated manual pages |
+| `neonape checklist --target <domain> --auto` | Run MAGI Checklist automatically |
+| `neonape man` | Beautiful Eva-themed operator manual |
 
-## Why This Exists
+## Why Neon Ape Exists
 
-Neon Ape exists for operators who want one terminal dashboard that stays local, feels sharp, and carries a clean workflow from recon to review to reporting. It keeps the Evangelion identity, but the core value is practical: less shell sprawl, clearer guidance, better persistence, and a toolchain that can refine itself over time without leaving your machine.
+You wanted a simple checklist-driven life as a pen-tester, Neon Genesis Evangelion aesthetics, self-improving tools, and zero external exposure. Neon Ape delivers exactly that — and now it literally gets smarter every night.
+
+**Version:** 0.9.3 (Production)  
+**Theme:** Neon Genesis Evangelion  
+**License:** MIT  
+Made with love for the operators who want to feel like they’re piloting Unit-01 while doing recon.
 
 ## Preview
 
