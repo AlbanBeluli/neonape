@@ -30,6 +30,8 @@ def build_parser() -> argparse.ArgumentParser:
             "  neonape skill list\n"
             "  neonape skill diff magi-checklist\n"
             "  neonape skill use magi-checklist --version 2026-03-18\n\n"
+            "Setup:\n"
+            "  neonape setup notifications\n\n"
             "Workflows:\n"
             "  neonape --workflow pd_web_chain --target example.com\n"
             "  neonape --workflow light_recon --target example.com\n"
@@ -56,6 +58,10 @@ def build_parser() -> argparse.ArgumentParser:
     man_subparsers.add_parser("checklist", help="Open the dedicated MAGI checklist manual.")
     update_parser = subparsers.add_parser("update", help="Refresh an install-managed Neon Ape copy in place.")
     update_parser.add_argument("--yes", action="store_true", help="Skip the confirmation prompt.")
+    setup_parser = subparsers.add_parser("setup", help="Install optional local operator dependencies.")
+    setup_subparsers = setup_parser.add_subparsers(dest="setup_command", required=True)
+    setup_notifications = setup_subparsers.add_parser("notifications", help="Install terminal-notifier on macOS via Homebrew.")
+    setup_notifications.add_argument("--yes", action="store_true", help="Skip the confirmation prompt.")
     config_parser = subparsers.add_parser("config", help="Show or update Neon Ape user config.")
     config_subparsers = config_parser.add_subparsers(dest="config_action", required=True)
     config_subparsers.add_parser("show", help="Show the effective Neon Ape config.")
@@ -74,6 +80,7 @@ def build_parser() -> argparse.ArgumentParser:
     autoresearch_parser.add_argument("--iterations", type=int, default=6, help="Number of tiny-change iterations to evaluate.")
     autoresearch_parser.add_argument("--rounds", type=int, help="Alias for --iterations.")
     autoresearch_parser.add_argument("--baseline-runs", type=int, default=8, help="How many scoring runs to average for baseline and candidates.")
+    autoresearch_parser.add_argument("--test-target", action="append", default=[], help="Optional safe test target label for the objective harness. Can be repeated.")
     autoresearch_parser.add_argument("--auto", action="store_true", help="Use stored default questions and scenarios with no interactive prompts.")
     autoresearch_parser.add_argument("--headless", action="store_true", help="Enable auto mode, suppress voice, and send a terminal-notifier message on macOS.")
     autoresearch_parser.add_argument("--no-voice", action="store_true", help="Suppress Daniel voice lines for this autoresearch run.")
@@ -257,6 +264,8 @@ def main() -> int:
     app.uninstall_yes = getattr(args, "yes", False)
     app.uninstall_purge_data = getattr(args, "purge_data", False)
     app.update_yes = getattr(args, "yes", False) if args.command == "update" else False
+    app.setup_command = getattr(args, "setup_command", None) if args.command == "setup" else None
+    app.setup_yes = getattr(args, "yes", False) if args.command == "setup" else False
     app.obsidian_vault_path = getattr(args, "vault_path", None)
     app.obsidian_target_note = getattr(args, "target_note", None)
     app.obsidian_notes_passphrase = getattr(args, "notes_passphrase", None)
@@ -272,6 +281,7 @@ def main() -> int:
     app.autoresearch_scenarios = getattr(args, "scenario", []) if args.command == "autoresearch" else []
     app.autoresearch_iterations = ((getattr(args, "rounds", None) or getattr(args, "iterations", 6)) if args.command == "autoresearch" else 6)
     app.autoresearch_baseline_runs = getattr(args, "baseline_runs", 8) if args.command == "autoresearch" else 8
+    app.autoresearch_test_targets = getattr(args, "test_target", []) if args.command == "autoresearch" else []
     app.autoresearch_auto = getattr(args, "auto", False) if args.command == "autoresearch" else False
     app.autoresearch_headless = getattr(args, "headless", False) if args.command == "autoresearch" else False
     app.autoresearch_no_voice = getattr(args, "no_voice", False) if args.command == "autoresearch" else False

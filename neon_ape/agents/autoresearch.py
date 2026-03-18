@@ -16,6 +16,7 @@ from rich.panel import Panel
 from rich.prompt import Prompt
 from rich.table import Table
 
+from neon_ape.evaluation.harness import built_in_targets, evaluate_skill_objectively, render_sparkline
 from neon_ape.services.llm_triage import cline_available, ollama_available
 from neon_ape.skills.manager import (
     describe_skill_structure,
@@ -216,6 +217,7 @@ def run_autoresearch(
     no_voice: bool = False,
     dry_run: bool = False,
     silent_voice: bool = False,
+    test_targets: list[str] | None = None,
 ) -> bool:
     profile = _resolve_skill_profile(skill_target, console)
     if profile is None:
@@ -256,30 +258,68 @@ def run_autoresearch(
         auto=auto,
         persisted_defaults=persisted_defaults["scenarios"],
     )
+    active_targets = test_targets or built_in_targets(profile.name)
     baseline_text = str((persisted or {}).get("content", original_text))
-    baseline_samples = _score_samples(profile, baseline_text, active_questions, active_scenarios, runs=baseline_runs)
-    baseline_score = round(mean(baseline_samples), 2)
+    baseline_subjective_samples = _score_samples(profile, baseline_text, active_questions, active_scenarios, runs=baseline_runs)
+    baseline_subjective = round(mean(baseline_subjective_samples), 2)
+    baseline_objective_report = evaluate_skill_objectively(
+        skill_name=profile.name,
+        candidate_text=baseline_text,
+        test_targets=active_targets,
+    )
+    baseline_score = float(baseline_objective_report["score"])
     best_text = baseline_text
     best_score = baseline_score
+    best_subjective = baseline_subjective
+    best_objective_report = baseline_objective_report
     kept_changes: list[dict[str, object]] = []
     discarded_changes: list[dict[str, object]] = []
-    mutation_log: list[dict[str, object]] = []
+    objective_history = [baseline_score]
+    subjective_history = [baseline_subjective]
 
-    with Live(_build_dashboard(profile, baseline_score, best_score, kept_changes, discarded_changes, active_questions, active_scenarios), console=console, refresh_per_second=4) as live:
+    with Live(
+        _build_dashboard(
+            profile,
+            baseline_score,
+            best_score,
+            baseline_subjective,
+            best_subjective,
+            kept_changes,
+            discarded_changes,
+            active_questions,
+            active_scenarios,
+            active_targets,
+            best_objective_report,
+            objective_history,
+            subjective_history,
+        ),
+        console=console,
+        refresh_per_second=4,
+    ) as live:
         for iteration in range(1, max(iterations, 1) + 1):
             change_note = _choose_mutation(profile, best_text, iteration)
             candidate_text = _apply_tiny_change(best_text, profile, change_note, iteration)
-            scores = _score_samples(profile, candidate_text, active_questions, active_scenarios, runs=baseline_runs)
-            candidate_score = round(mean(scores), 2)
+            subjective_samples = _score_samples(profile, candidate_text, active_questions, active_scenarios, runs=baseline_runs)
+            candidate_subjective = round(mean(subjective_samples), 2)
+            objective_report = evaluate_skill_objectively(
+                skill_name=profile.name,
+                candidate_text=candidate_text,
+                test_targets=active_targets,
+            )
+            candidate_score = float(objective_report["score"])
             entry = {
                 "iteration": iteration,
                 "change": change_note,
                 "score": candidate_score,
+                "subjective_score": candidate_subjective,
                 "delta": round(candidate_score - best_score, 2),
             }
-            mutation_log.append(entry)
+            objective_history.append(candidate_score)
+            subjective_history.append(candidate_subjective)
             if candidate_score > best_score:
                 best_score = candidate_score
+                best_subjective = candidate_subjective
+                best_objective_report = objective_report
                 best_text = candidate_text
                 kept_changes.append(entry)
             else:
@@ -289,10 +329,16 @@ def run_autoresearch(
                     profile,
                     baseline_score,
                     best_score,
+                    baseline_subjective,
+                    best_subjective,
                     kept_changes,
                     discarded_changes,
                     active_questions,
                     active_scenarios,
+                    active_targets,
+                    best_objective_report,
+                    objective_history,
+                    subjective_history,
                     iteration=iteration,
                     overnight=overnight,
                 )
@@ -341,8 +387,10 @@ def run_autoresearch(
         Panel.fit(
             f"[bold magenta]Autoresearch complete[/bold magenta]\n"
             f"[bold]Skill:[/bold] {profile.label}\n"
-            f"[bold]Baseline:[/bold] {baseline_score}%\n"
-            f"[bold]Improved:[/bold] {best_score}%\n"
+            f"[bold]Baseline objective:[/bold] {baseline_score}%\n"
+            f"[bold]Baseline subjective:[/bold] {baseline_subjective}%\n"
+            f"[bold]Improved objective:[/bold] {best_score}%\n"
+            f"[bold]Improved subjective:[/bold] {best_subjective}%\n"
             f"[bold]Improvement delta:[/bold] {improvement}%\n"
             f"[bold]Current skill:[/bold] {describe_skill_structure(profile.name)[1]}\n"
             f"[bold]Backup:[/bold] {backup_file if backup_file else 'Not written'}\n"
@@ -508,10 +556,16 @@ def _build_dashboard(
     profile: SkillProfile,
     baseline_score: float,
     best_score: float,
+    baseline_subjective: float,
+    best_subjective: float,
     kept_changes: list[dict[str, object]],
     discarded_changes: list[dict[str, object]],
     questions: list[str],
     scenarios: list[str],
+    test_targets: list[str],
+    objective_report: dict[str, object],
+    objective_history: list[float],
+    subjective_history: list[float],
     *,
     iteration: int = 0,
     overnight: bool = False,
@@ -523,29 +577,46 @@ def _build_dashboard(
     stats.add_row("Source", str(profile.source_path.relative_to(REPO_ROOT)))
     stats.add_row("Mode", "overnight autonomous loop" if overnight else "bounded local loop")
     stats.add_row("Iteration", str(iteration))
-    stats.add_row("Baseline", f"{baseline_score}%")
-    stats.add_row("Best", f"{best_score}%")
+    stats.add_row("Baseline Objective", f"{baseline_score}%")
+    stats.add_row("Best Objective", f"{best_score}%")
+    stats.add_row("Baseline Subjective", f"{baseline_subjective}%")
+    stats.add_row("Best Subjective", f"{best_subjective}%")
     stats.add_row("Kept", str(len(kept_changes)))
     stats.add_row("Discarded", str(len(discarded_changes)))
 
     score_table = Table(title="Score Chart", expand=False)
     score_table.add_column("Metric", style="bold magenta")
     score_table.add_column("Value")
-    score_table.add_row("Baseline", f"{baseline_score}%")
-    score_table.add_row("Current Best", f"{best_score}%")
-    score_table.add_row("Improvement", f"{round(best_score - baseline_score, 2)}%")
+    score_table.add_row("Baseline Objective", f"{baseline_score}%")
+    score_table.add_row("Current Best Objective", f"{best_score}%")
+    score_table.add_row("Baseline Subjective", f"{baseline_subjective}%")
+    score_table.add_row("Current Best Subjective", f"{best_subjective}%")
+    score_table.add_row("Objective Improvement", f"{round(best_score - baseline_score, 2)}%")
+
+    oracle_table = Table(title="Objective Oracles", expand=False)
+    oracle_table.add_column("Oracle", style="bold magenta")
+    oracle_table.add_column("Score")
+    for key, value in sorted((objective_report.get("oracle_scores") or {}).items()):
+        oracle_table.add_row(key.replace("_", " "), f"{value}%")
 
     log_table = Table(title="Change Log", expand=False)
     log_table.add_column("Decision", style="bold")
     log_table.add_column("Iteration")
-    log_table.add_column("Score")
+    log_table.add_column("Objective")
+    log_table.add_column("Subjective")
     log_table.add_column("Change")
     for entry in kept_changes[-4:]:
-        log_table.add_row("[bold green]kept[/bold green]", str(entry["iteration"]), f"{entry['score']}%", str(entry["change"]))
+        log_table.add_row("[bold green]kept[/bold green]", str(entry["iteration"]), f"{entry['score']}%", f"{entry['subjective_score']}%", str(entry["change"]))
     for entry in discarded_changes[-4:]:
-        log_table.add_row("[bold red]discarded[/bold red]", str(entry["iteration"]), f"{entry['score']}%", str(entry["change"]))
+        log_table.add_row("[bold red]discarded[/bold red]", str(entry["iteration"]), f"{entry['score']}%", f"{entry['subjective_score']}%", str(entry["change"]))
     if not kept_changes and not discarded_changes:
-        log_table.add_row("-", "-", "-", "Awaiting first tiny change")
+        log_table.add_row("-", "-", "-", "-", "Awaiting first tiny change")
+
+    graph_table = Table(title="Live Score Graph", expand=False)
+    graph_table.add_column("Series", style="bold magenta")
+    graph_table.add_column("Sparkline")
+    graph_table.add_row("Objective", render_sparkline(objective_history[-24:]))
+    graph_table.add_row("Subjective", render_sparkline(subjective_history[-24:]))
 
     prompts_table = Table(title="Operator Criteria", expand=False)
     prompts_table.add_column("Type", style="bold magenta")
@@ -554,10 +625,14 @@ def _build_dashboard(
         prompts_table.add_row("Yes/No", question)
     for scenario in scenarios:
         prompts_table.add_row("Scenario", scenario)
+    for target in test_targets:
+        prompts_table.add_row("Fixture", target)
 
     return Group(
         Panel.fit(stats, title="Autoresearch Dashboard", border_style="magenta"),
         score_table,
+        oracle_table,
+        graph_table,
         log_table,
         prompts_table,
     )

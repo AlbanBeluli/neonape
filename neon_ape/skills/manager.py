@@ -57,6 +57,15 @@ def initialize_skill_state(
 ) -> dict[str, Any]:
     existing = load_current_skill(skill_name, root=root)
     if existing is not None:
+        changed = False
+        if default_questions and not existing.get("default_questions"):
+            existing["default_questions"] = default_questions
+            changed = True
+        if default_scenarios and not existing.get("default_scenarios"):
+            existing["default_scenarios"] = default_scenarios
+            changed = True
+        if changed:
+            _write_current(skill_name, existing, root=root)
         return existing
     state = _build_state(
         skill_name=skill_name,

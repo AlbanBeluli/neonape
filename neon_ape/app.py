@@ -1,8 +1,10 @@
 from pathlib import Path
 from getpass import getpass
+import subprocess
 from types import SimpleNamespace
 from rich.panel import Panel
 from rich.console import Console
+from rich.prompt import Confirm
 
 from neon_ape.agents.adam import run_adam
 from neon_ape.agents.autoresearch import run_autoresearch
@@ -73,6 +75,8 @@ class NeonApeApp:
         self.uninstall_yes = False
         self.uninstall_purge_data = False
         self.update_yes = False
+        self.setup_command: str | None = None
+        self.setup_yes = False
         self.obsidian_vault_path: str | None = None
         self.obsidian_target_note: str | None = None
         self.obsidian_notes_passphrase: str | None = None
@@ -97,6 +101,7 @@ class NeonApeApp:
         self.autoresearch_scenarios: list[str] = []
         self.autoresearch_iterations = 6
         self.autoresearch_baseline_runs = 8
+        self.autoresearch_test_targets: list[str] = []
         self.autoresearch_auto = False
         self.autoresearch_headless = False
         self.autoresearch_no_voice = False
@@ -126,6 +131,11 @@ class NeonApeApp:
                 self.config,
                 assume_yes=self.update_yes,
             )
+            return
+
+        if self.command == "setup":
+            if self.setup_command == "notifications":
+                self._run_setup_notifications()
             return
 
         if self.command == "config":
@@ -187,6 +197,7 @@ class NeonApeApp:
                 overnight=self.autoresearch_overnight,
                 iterations=self.autoresearch_iterations,
                 baseline_runs=self.autoresearch_baseline_runs,
+                test_targets=self.autoresearch_test_targets,
                 auto=self.autoresearch_auto,
                 headless=self.autoresearch_headless,
                 no_voice=self.autoresearch_no_voice,
@@ -439,3 +450,20 @@ class NeonApeApp:
                 workflow_name=self.workflow,
             )
             return
+
+    def _run_setup_notifications(self) -> None:
+        if subprocess.run(["/usr/bin/env", "uname"], capture_output=True, text=True, check=False).stdout.strip() != "Darwin":
+            self.console.print("[bold yellow]Notification setup is only available on macOS.[/bold yellow]")
+            return
+        if subprocess.run(["/usr/bin/env", "which", "brew"], capture_output=True, text=True, check=False).returncode != 0:
+            self.console.print("[bold red]Homebrew was not found on PATH.[/bold red]")
+            return
+        if not self.setup_yes and not Confirm.ask("Install terminal-notifier with Homebrew?", default=False):
+            self.console.print("[bold yellow]Notification setup cancelled.[/bold yellow]")
+            return
+        completed = subprocess.run(["brew", "install", "terminal-notifier"], capture_output=True, text=True, check=False)
+        if completed.returncode == 0:
+            self.console.print("[bold green]terminal-notifier installed successfully.[/bold green]")
+            return
+        error_text = completed.stderr.strip() or completed.stdout.strip() or f"brew exited with {completed.returncode}"
+        self.console.print(f"[bold red]{error_text}[/bold red]")

@@ -99,7 +99,8 @@ def _adam_autoresearch() -> Group:
         Rule("AUTORESEARCH", style="red"),
         table,
         Panel.fit(
-            "Autoresearch runs a bounded local loop: baseline scoring, one tiny change at a time, eight scoring passes per candidate, and keep-only-if-better behavior.\n\n"
+            "Autoresearch runs a bounded local loop with an objective evaluation harness: host discovery, sensitive path coverage, top-risk visibility, duplicate grouping, persistence, and export quality.\n\n"
+            "The dashboard shows both subjective criteria scores and weighted objective oracle scores, plus a live sparkline graph for each series.\n\n"
             "Persistent skills live under `~/.neonape/skills/<skill>/` with `current.json`, `history/`, and `changelog.md`.\n\n"
             "Use `neonape skill list`, `neonape skill diff <skill>`, and `neonape skill use <skill> --version <timestamp>` to inspect or roll back versions.",
             border_style="orange3",
@@ -115,6 +116,7 @@ def _adam_examples() -> Group:
     table.add_row("Prompt for target", "`neonape adam`")
     table.add_row("Adam + autoresearch", "`neonape adam --autoresearch --target stoic.ee`")
     table.add_row("Headless autoresearch", "`neonape autoresearch --target magi-checklist --rounds 50 --auto`")
+    table.add_row("Objective harness", "`neonape autoresearch --target angel-eyes --headless --rounds 50`")
     table.add_row("Review saved results after run", "`neonape db domain --target stoic.ee`")
     table.add_row("Re-open the docs", "`neonape man adam`")
     return Group(Rule("EXAMPLES", style="red"), table)

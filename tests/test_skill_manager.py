@@ -73,3 +73,25 @@ def test_use_skill_version_switches_current(tmp_path) -> None:
     )
     active = use_skill_version("angel-eyes", backup.stem[:10], root=tmp_path)
     assert active["content"] == "baseline"
+
+
+def test_initialize_skill_state_backfills_defaults_on_existing_snapshot(tmp_path) -> None:
+    initialize_skill_state(
+        skill_name="ui-panels",
+        label="UI Panels",
+        source_path=Path("/tmp/source.py"),
+        content="baseline",
+        root=tmp_path,
+        score=40.0,
+    )
+    state = initialize_skill_state(
+        skill_name="ui-panels",
+        label="UI Panels",
+        source_path=Path("/tmp/source.py"),
+        content="baseline",
+        root=tmp_path,
+        score=40.0,
+        default_questions=["Does it surface signal quickly?"],
+        default_scenarios=["An operator opens the panel late at night."],
+    )
+    assert state["default_questions"] == ["Does it surface signal quickly?"]

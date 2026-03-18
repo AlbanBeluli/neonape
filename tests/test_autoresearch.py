@@ -34,6 +34,17 @@ def test_autoresearch_generates_daily_artifacts(tmp_path, monkeypatch) -> None:
     monkeypatch.setattr("neon_ape.agents.autoresearch.is_macos", lambda: False)
     sample_sets = iter(([50.0, 50.0], [53.5, 53.5], [53.5, 53.5]))
     monkeypatch.setattr("neon_ape.agents.autoresearch._score_samples", lambda *args, **kwargs: next(sample_sets))
+    objective_sets = iter(
+        (
+            {"score": 48.61, "oracles": {"host discovery success": 48.61}},
+            {"score": 53.85, "oracles": {"host discovery success": 53.85}},
+            {"score": 53.85, "oracles": {"host discovery success": 53.85}},
+        )
+    )
+    monkeypatch.setattr(
+        "neon_ape.agents.autoresearch.evaluate_skill_objectively",
+        lambda *args, **kwargs: next(objective_sets),
+    )
 
     success = run_autoresearch(
         console,
@@ -74,6 +85,10 @@ def test_autoresearch_headless_skips_voice_and_reports_notifier(tmp_path, monkey
     monkeypatch.setattr("neon_ape.agents.autoresearch.is_macos", lambda: True)
     monkeypatch.setattr("neon_ape.agents.autoresearch.which", lambda name: "/usr/local/bin/terminal-notifier" if name == "terminal-notifier" else None)
     monkeypatch.setattr("neon_ape.agents.autoresearch._score_samples", lambda *args, **kwargs: [50.0, 53.5])
+    monkeypatch.setattr(
+        "neon_ape.agents.autoresearch.evaluate_skill_objectively",
+        lambda *args, **kwargs: {"score": 55.0, "oracles": {"host discovery success": 55.0}},
+    )
     calls: list[list[str]] = []
 
     def fake_run(command, **kwargs):
@@ -111,6 +126,17 @@ def test_autoresearch_dry_run_does_not_persist_new_version(tmp_path, monkeypatch
     monkeypatch.setattr("neon_ape.agents.autoresearch.is_macos", lambda: False)
     sample_sets = iter(([50.0, 50.0], [55.0, 55.0], [55.0, 55.0]))
     monkeypatch.setattr("neon_ape.agents.autoresearch._score_samples", lambda *args, **kwargs: next(sample_sets))
+    objective_sets = iter(
+        (
+            {"score": 48.0, "oracles": {"host discovery success": 48.0}},
+            {"score": 55.5, "oracles": {"host discovery success": 55.5}},
+            {"score": 55.5, "oracles": {"host discovery success": 55.5}},
+        )
+    )
+    monkeypatch.setattr(
+        "neon_ape.agents.autoresearch.evaluate_skill_objectively",
+        lambda *args, **kwargs: next(objective_sets),
+    )
 
     success = run_autoresearch(
         console,

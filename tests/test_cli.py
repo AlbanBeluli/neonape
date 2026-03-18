@@ -36,6 +36,14 @@ def test_parse_update_subcommand() -> None:
     assert args.yes is True
 
 
+def test_parse_setup_notifications_subcommand() -> None:
+    parser = build_parser()
+    args = parser.parse_args(["setup", "notifications", "--yes"])
+    assert args.command == "setup"
+    assert args.setup_command == "notifications"
+    assert args.yes is True
+
+
 def test_parse_tool_command_flags() -> None:
     parser = build_parser()
     args = parser.parse_args(["--tool", "httpx", "--target", "https://example.com"])
@@ -207,12 +215,13 @@ def test_parse_autoresearch_rounds_alias() -> None:
 
 def test_parse_autoresearch_auto_and_headless_flags() -> None:
     parser = build_parser()
-    args = parser.parse_args(["autoresearch", "--target", "angel-eyes", "--auto", "--headless", "--dry-run", "--no-voice"])
+    args = parser.parse_args(["autoresearch", "--target", "angel-eyes", "--auto", "--headless", "--dry-run", "--no-voice", "--test-target", "fixture-web-001.local"])
     assert args.command == "autoresearch"
     assert args.auto is True
     assert args.headless is True
     assert args.dry_run is True
     assert args.no_voice is True
+    assert args.test_target == ["fixture-web-001.local"]
 
 
 def test_parse_skill_commands() -> None:
