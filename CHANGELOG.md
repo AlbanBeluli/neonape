@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.9.5] - 2026-03-18
+
+- Made ffuf wordlist handling deterministic by always using `~/.neonape/wordlists/common.txt`.
+- Added local wordlist seeding from SecLists, download fallback, and a built-in fallback list for offline runs.
+- Lowered ffuf defaults to `-t 40` and `-rate 80` for a more stable default path.
+- Updated setup tooling to ensure the ffuf wordlist exists before Adam or checklist runs.
+- Fixed ffuf output handling to use supported JSON output so the default flow no longer falls back unnecessarily.
+
 ## [0.9.4] - 2026-03-18
 
 - Switched the default web-path enumeration flow from Gobuster to ffuf.

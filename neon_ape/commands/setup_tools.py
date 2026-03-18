@@ -8,6 +8,8 @@ from shutil import which
 from rich.console import Console
 from rich.prompt import Confirm
 
+from neon_ape.tools.ffuf_wrapper import default_ffuf_wordlist_path, ensure_ffuf_wordlist
+
 
 SUPPORTED_TOOLS = (
     "passive_recon",
@@ -95,7 +97,9 @@ def run_tool_setup(
 ) -> bool:
     detected_missing = find_missing_tools(missing_tools)
     if not detected_missing:
+        wordlist_path = ensure_ffuf_wordlist(default_ffuf_wordlist_path())
         console.print("[bold green]All managed recon tools already appear to be installed.[/bold green]")
+        console.print(f"[bold cyan]ffuf wordlist ready:[/bold cyan] {wordlist_path}")
         return True
 
     packages, unmanaged, manager = _build_install_plan(detected_missing)
@@ -125,7 +129,9 @@ def run_tool_setup(
     command = ["brew", "install", *packages] if manager == "brew" else ["sudo", "apt-get", "install", "-y", *packages]
     completed = subprocess.run(command, capture_output=True, text=True, check=False, shell=False)
     if completed.returncode == 0:
+        wordlist_path = ensure_ffuf_wordlist(default_ffuf_wordlist_path())
         console.print("[bold green]Tool setup completed.[/bold green]")
+        console.print(f"[bold cyan]ffuf wordlist ready:[/bold cyan] {wordlist_path}")
         if unmanaged:
             console.print(
                 f"[bold yellow]Still unmanaged:[/bold yellow] {', '.join(unmanaged)}"

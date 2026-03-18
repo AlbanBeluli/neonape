@@ -7,7 +7,7 @@ from neon_ape.tools.projectdiscovery import (
     parse_projectdiscovery_output,
 )
 from neon_ape.tools.base import run_command
-from neon_ape.tools.ffuf_wrapper import build_ffuf_command, parse_ffuf_output
+from neon_ape.tools.ffuf_wrapper import build_ffuf_command, ensure_ffuf_wordlist, parse_ffuf_output
 from neon_ape.tools.web_enum import build_gobuster_command, parse_gobuster_output
 from neon_ape.tools.web_paths import correlate_sensitive_paths
 
@@ -198,6 +198,25 @@ def test_build_ffuf_command_adds_fuzz_placeholder(tmp_path, monkeypatch) -> None
     validated, command = build_ffuf_command("example.com", tmp_path / "ffuf.jsonl")
     assert validated == "https://example.com"
     assert f"{validated}/FUZZ" in command
+    assert "-t" in command
+    assert command[command.index("-t") + 1] == "40"
+    assert "-rate" in command
+    assert command[command.index("-rate") + 1] == "80"
+
+
+def test_ensure_ffuf_wordlist_uses_builtin_fallback(tmp_path, monkeypatch) -> None:
+    target = tmp_path / "wordlists" / "common.txt"
+    monkeypatch.setattr("neon_ape.tools.ffuf_wrapper.DEFAULT_WORDLISTS", ())
+
+    def fail_urlopen(*args, **kwargs):
+        raise OSError("offline")
+
+    monkeypatch.setattr("urllib.request.urlopen", fail_urlopen)
+    wordlist = ensure_ffuf_wordlist(target)
+    assert wordlist == target
+    content = target.read_text(encoding="utf-8")
+    assert ".env" in content
+    assert "admin" in content
 
 
 def test_render_command_preview_masks_home_paths(monkeypatch) -> None:

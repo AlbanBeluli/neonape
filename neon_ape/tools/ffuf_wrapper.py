@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+import shutil
 import urllib.request
 from urllib.parse import urlparse
 
@@ -12,6 +13,27 @@ from neon_ape.tools.web_paths import enrich_web_path_findings
 
 
 FFUF_WORDLIST_URL = "https://raw.githubusercontent.com/danielmiessler/SecLists/master/Discovery/Web-Content/common.txt"
+BUILTIN_FFUF_WORDLIST = """\
+admin
+login
+.env
+.git
+.htaccess
+.htpasswd
+config.php
+phpinfo.php
+robots.txt
+sitemap.xml
+backup.zip
+backup.tar.gz
+uploads
+api
+dashboard
+"""
+
+
+def default_ffuf_wordlist_path() -> Path:
+    return Path.home() / ".neonape" / "wordlists" / "common.txt"
 
 
 def build_ffuf_command(
@@ -19,11 +41,11 @@ def build_ffuf_command(
     output_path: Path,
     *,
     wordlist_path: Path | None = None,
-    threads: int = 50,
-    rate: int = 100,
+    threads: int = 40,
+    rate: int = 80,
 ) -> tuple[str, list[str]]:
     validated = _normalize_ffuf_target(target)
-    wordlist = ensure_ffuf_wordlist(wordlist_path or output_path.parent / "wordlists" / "common.txt")
+    wordlist = ensure_ffuf_wordlist(wordlist_path or default_ffuf_wordlist_path())
     command = [
         "ffuf",
         "-u",
@@ -37,29 +59,33 @@ def build_ffuf_command(
         "-o",
         str(output_path),
         "-of",
-        "jsonl",
+        "json",
     ]
     return validated, command
 
 
-def ensure_ffuf_wordlist(preferred_path: Path) -> Path:
+def ensure_ffuf_wordlist(preferred_path: Path | None = None) -> Path:
+    target_path = preferred_path or default_ffuf_wordlist_path()
+    target_path = target_path.expanduser()
+    if target_path.exists() and target_path.stat().st_size > 0:
+        return target_path
+
     for candidate in DEFAULT_WORDLISTS:
         resolved = Path(candidate).expanduser()
-        if resolved.exists():
-            return resolved
-    preferred_path.parent.mkdir(parents=True, exist_ok=True)
-    if preferred_path.exists() and preferred_path.stat().st_size > 0:
-        return preferred_path
+        if resolved.exists() and resolved.stat().st_size > 0:
+            target_path.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copyfile(resolved, target_path)
+            return target_path
+
+    target_path.parent.mkdir(parents=True, exist_ok=True)
     try:
         with urllib.request.urlopen(FFUF_WORDLIST_URL, timeout=20) as response:
             data = response.read()
-        preferred_path.write_bytes(data)
-        return preferred_path
-    except Exception as exc:  # noqa: BLE001
-        raise ValueError(
-            "No supported ffuf wordlist found and automatic download failed. "
-            "Install SecLists or place Discovery/Web-Content/common.txt locally."
-        ) from exc
+        target_path.write_bytes(data)
+        return target_path
+    except Exception:  # noqa: BLE001
+        target_path.write_text(BUILTIN_FFUF_WORDLIST, encoding="utf-8")
+        return target_path
 
 
 def execute_ffuf(command: list[str], target: str, output_path: Path) -> ToolResult:

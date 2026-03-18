@@ -335,7 +335,7 @@ def run_ffuf(
     target: str,
     scan_dir: Path,
 ) -> bool:
-    output_path = scan_dir / f"ffuf_{_safe_name(target)}.jsonl"
+    output_path = scan_dir / f"ffuf_{_safe_name(target)}.json"
     try:
         validated_target, command = build_ffuf_command(target, output_path)
     except ValueError as exc:
@@ -350,6 +350,13 @@ def run_ffuf(
             style=section_style("green"),
         )
     )
+    if "-w" in command:
+        wordlist_path = Path(command[command.index("-w") + 1])
+        try:
+            display_wordlist = f"~/{wordlist_path.relative_to(Path.home())}"
+        except ValueError:
+            display_wordlist = str(wordlist_path)
+        console.print(f"[bold cyan]Using wordlist:[/bold cyan] {display_wordlist}")
 
     result = execute_ffuf(command, validated_target, output_path)
     findings = parse_ffuf_output(output_path)
