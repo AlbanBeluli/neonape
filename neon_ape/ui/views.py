@@ -55,6 +55,7 @@ def build_missing_tools_panel(tools: list[str]) -> Panel:
         "dnsx": "Install ProjectDiscovery dnsx and place it on PATH.",
         "nuclei": "Install ProjectDiscovery nuclei and update templates separately if needed.",
         "katana": "Install ProjectDiscovery katana and place it on PATH.",
+        "ffuf": "Install ffuf and a common wordlist such as SecLists common.txt.",
         "gobuster": "Install gobuster and a common wordlist such as SecLists or dirb.",
     }
     unique_tools = list(dict.fromkeys(tools))
@@ -103,7 +104,7 @@ def build_tool_output_table(tool_name: str, findings: list[dict[str, str]]) -> T
         return build_dnsx_table(findings)
     if tool_name == "nuclei":
         return build_nuclei_table(findings)
-    if tool_name in {"katana", "gobuster"}:
+    if tool_name in {"katana", "gobuster", "ffuf"}:
         return build_web_path_table(findings, tool_name)
     return build_findings_table(findings)
 
@@ -312,6 +313,7 @@ def build_notes_table(notes: list[dict[str, str | int | None]]) -> Table:
 def build_domain_summary_panel(target: str, overview: dict[str, list[dict[str, str | int | None]]]) -> Panel:
     web_paths = overview.get("web_paths", {})
     katana_count = len(web_paths.get("katana", [])) if isinstance(web_paths, dict) else 0
+    ffuf_count = len(web_paths.get("ffuf", [])) if isinstance(web_paths, dict) else 0
     gobuster_count = len(web_paths.get("gobuster", [])) if isinstance(web_paths, dict) else 0
     angel_eyes = overview.get("angel_eyes", {})
     angel_count = len(angel_eyes.get("items", [])) if isinstance(angel_eyes, dict) else 0
@@ -320,6 +322,7 @@ def build_domain_summary_panel(target: str, overview: dict[str, list[dict[str, s
         f"[bold]Scans:[/bold] {len(overview.get('scans', []))}\n"
         f"[bold]Findings:[/bold] {len(overview.get('findings', []))}\n"
         f"[bold]Katana Paths:[/bold] {katana_count}\n"
+        f"[bold]ffuf Paths:[/bold] {ffuf_count}\n"
         f"[bold]Gobuster Paths:[/bold] {gobuster_count}\n"
         f"[bold]Angel Eyes:[/bold] {angel_count}\n"
         f"[bold]Inventory:[/bold] {len(overview.get('inventory', []))}\n"
@@ -380,6 +383,7 @@ def build_review_summary_panel(target: str, overview: dict[str, list[dict[str, s
     medium = sum(1 for value in severities if value == "medium")
     web_paths = overview.get("web_paths", {})
     katana_count = len(web_paths.get("katana", [])) if isinstance(web_paths, dict) else 0
+    ffuf_count = len(web_paths.get("ffuf", [])) if isinstance(web_paths, dict) else 0
     gobuster_count = len(web_paths.get("gobuster", [])) if isinstance(web_paths, dict) else 0
     angel_eyes = overview.get("angel_eyes", {})
     angel_count = len(angel_eyes.get("items", [])) if isinstance(angel_eyes, dict) else 0
@@ -387,6 +391,7 @@ def build_review_summary_panel(target: str, overview: dict[str, list[dict[str, s
         f"[bold]Target:[/bold] {target}\n"
         f"[bold]Inventory Entries:[/bold] {len(overview.get('inventory', []))}\n"
         f"[bold]Katana Paths:[/bold] {katana_count}\n"
+        f"[bold]ffuf Paths:[/bold] {ffuf_count}\n"
         f"[bold]Gobuster Paths:[/bold] {gobuster_count}\n"
         f"[bold]Angel Eyes:[/bold] {angel_count}\n"
         f"[bold]Critical:[/bold] {critical}\n"
@@ -402,7 +407,7 @@ def build_llm_triage_panel(content: str, model: str) -> Panel:
 
 def build_web_path_table(findings: list[dict[str, str | int | None]], tool_name: str) -> Table:
     table = Table(title=f"{tool_name.title()} Findings", expand=False)
-    if tool_name == "gobuster":
+    if tool_name in {"gobuster", "ffuf"}:
         table.add_column("Path", style="bold")
         table.add_column("Status")
     else:

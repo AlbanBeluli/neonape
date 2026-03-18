@@ -14,6 +14,7 @@ SUPPORTED_TOOLS = (
     "whois",
     "dig",
     "nmap",
+    "ffuf",
     "gobuster",
     "amass",
     "subfinder",
@@ -29,6 +30,7 @@ BREW_PACKAGES = {
     "whois": "whois",
     "dig": "bind",
     "nmap": "nmap",
+    "ffuf": "ffuf",
     "gobuster": "gobuster",
     "amass": "amass",
     "assetfinder": "assetfinder",
@@ -44,6 +46,7 @@ APT_PACKAGES = {
     "whois": "whois",
     "dig": "dnsutils",
     "nmap": "nmap",
+    "ffuf": "ffuf",
     "gobuster": "gobuster",
     "amass": "amass",
 }

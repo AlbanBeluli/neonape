@@ -15,7 +15,7 @@ This project does not automate brute force, exploitation, credential attacks, or
 
 - **Adam** – The First Angel  
   `neonape adam --target example.com`  
-  Asks only for the domain and runs the entire pipeline automatically (subfinder → httpx → katana → gobuster → nuclei → Angel Eyes → MAGI Checklist → PDF).
+  Asks only for the domain and runs the entire pipeline automatically (subfinder → httpx → katana → ffuf → nuclei → Angel Eyes → MAGI Checklist → PDF).
 
 - **MAGI Checklist**  
   Interactive step-by-step guides with nmap wrappers, Python tools, and encrypted progress tracking. Runs fully automatically from Adam.
@@ -87,7 +87,7 @@ If your shell has not picked up `~/.local/bin` yet, run:
 
 You wanted a simple checklist-driven life as a pen-tester, Neon Genesis Evangelion aesthetics, self-improving tools, and zero external exposure. Neon Ape delivers exactly that — and now it literally gets smarter every night.
 
-**Version:** 0.9.3 (Production)  
+**Version:** 0.9.4 (Production)  
 **Theme:** Neon Genesis Evangelion  
 **License:** MIT  
 Made with love for the operators who want to feel like they’re piloting Unit-01 while doing recon.
@@ -130,7 +130,7 @@ $ neonape db scans --limit 3
 - Checklist engine backed by SQLite
 - `nmap` integration with XML parsing
 - ProjectDiscovery wrappers for `subfinder`, `assetfinder`, `amass`, `httpx`, `naabu`, `dnsx`, `katana`, and `nuclei`
-- Safe web enumeration wrapper for `gobuster`
+- Safe web enumeration wrapper for `ffuf` by default, with automatic Gobuster fallback
 - Chained workflows: `pd_chain`, `pd_web_chain`, `light_recon`, `deep_recon`, and `js_web_chain`
 - Welcome panel, missing-tool guidance, and severity-colored review tables
 - Encrypted notes and local scan history
@@ -209,6 +209,7 @@ Supported host tools:
 - `nuclei`
 - `dnsx`
 - `katana`
+- `ffuf`
 - `gobuster`
 - `whois`
 - `dig`
@@ -350,7 +351,7 @@ neonape --tool httpx --target https://example.com
 neonape --tool naabu --target 192.168.1.10
 neonape --tool dnsx --target example.com
 neonape --tool katana --target https://example.com
-neonape --tool gobuster --target https://example.com
+neonape --tool ffuf --target https://example.com
 neonape --tool nuclei --target https://example.com
 ```
 

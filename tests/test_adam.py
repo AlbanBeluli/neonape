@@ -65,7 +65,7 @@ def test_run_adam_continues_without_obsidian_and_runs_autoresearch(tmp_path, mon
         console,
         connection=object(),
         config=config,
-        detected_tools={tool: f"/usr/bin/{tool}" for tool in adam_module.ADAM_REQUIRED_TOOLS},
+        detected_tools={**{tool: f"/usr/bin/{tool}" for tool in adam_module.ADAM_REQUIRED_TOOLS}, "ffuf": "/usr/bin/ffuf"},
         target="example.com",
         autoresearch_enabled=True,
     )

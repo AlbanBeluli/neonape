@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.9.4] - 2026-03-18
+
+- Switched the default web-path enumeration flow from Gobuster to ffuf.
+- Added automatic ffuf wordlist resolution with local download fallback.
+- Preserved the legacy Gobuster path as an automatic fallback for one version.
+- Updated Adam, chained workflows, setup tooling, Angel Eyes views, and docs to treat ffuf as the primary engine.
+
 ## [0.9.3] - 2026-03-18
 
 ### Added

@@ -21,6 +21,7 @@ from neon_ape.tools.projectdiscovery import (
     execute_projectdiscovery,
     parse_projectdiscovery_output,
 )
+from neon_ape.tools.ffuf_wrapper import build_ffuf_command, execute_ffuf, parse_ffuf_output
 from neon_ape.tools.web_enum import build_gobuster_command, execute_gobuster, parse_gobuster_output
 from neon_ape.ui.layout import build_angel_eyes_panel
 from neon_ape.ui.theme import section_style
@@ -83,12 +84,15 @@ def run_checklist_step(
     if action_tool == "workflow":
         workflow_tools = {
             "pd_chain": {"subfinder", "httpx", "naabu"},
-            "pd_web_chain": {"subfinder", "httpx", "nuclei"},
+            "pd_web_chain": {"subfinder", "httpx", "katana", "nuclei"},
             "light_recon": {"assetfinder", "subfinder", "httpx"},
             "deep_recon": {"assetfinder", "subfinder", "amass", "dnsx", "httpx", "naabu", "nuclei"},
             "js_web_chain": {"subfinder", "httpx", "katana", "nuclei"},
         }
         missing_tools = sorted(tool for tool in workflow_tools.get(step_profile, set()) if tool not in detected_tools)
+        if step_profile in {"pd_web_chain", "deep_recon", "js_web_chain"} and "ffuf" not in detected_tools and "gobuster" not in detected_tools:
+            missing_tools.append("ffuf")
+        missing_tools = sorted(set(missing_tools))
         if missing_tools:
             console.print(build_missing_tools_panel(missing_tools))
             if not offer_missing_tool_setup(console, missing_tools=missing_tools, assume_yes=auto_setup):
@@ -252,7 +256,18 @@ def run_gobuster(
     target: str,
     scan_dir: Path,
     interactive_retry: bool = True,
+    use_ffuf: bool = True,
+    force_gobuster: bool = False,
 ) -> bool:
+    if use_ffuf and not force_gobuster:
+        ffuf_success = run_ffuf(console, connection, target=target, scan_dir=scan_dir)
+        if ffuf_success:
+            return True
+        console.print("[bold yellow]ffuf failed. Falling back to legacy Gobuster flow.[/bold yellow]")
+
+    # OLD GOBUSTER CODE
+    # The legacy Gobuster path is intentionally preserved for one release cycle
+    # while ffuf becomes the default web-path enumerator.
     output_path = scan_dir / f"gobuster_{_safe_name(target)}.txt"
     try:
         validated_target, command = build_gobuster_command(target, output_path)
@@ -313,6 +328,40 @@ def run_gobuster(
     return result.exit_code == 0
 
 
+def run_ffuf(
+    console: Console,
+    connection,
+    *,
+    target: str,
+    scan_dir: Path,
+) -> bool:
+    output_path = scan_dir / f"ffuf_{_safe_name(target)}.jsonl"
+    try:
+        validated_target, command = build_ffuf_command(target, output_path)
+    except ValueError as exc:
+        console.print(f"[bold red]{exc}[/bold red]")
+        return False
+
+    console.print(
+        Panel.fit(
+            f"[bold]Tool:[/bold] ffuf\n[bold]Target:[/bold] {validated_target}\n"
+            f"[bold]Command:[/bold] {render_command_preview(command)}",
+            title="Eva Unit Scanner",
+            style=section_style("green"),
+        )
+    )
+
+    result = execute_ffuf(command, validated_target, output_path)
+    findings = parse_ffuf_output(output_path)
+    record_scan(connection, result, findings)
+    console.print(build_tool_output_table("ffuf", findings))
+    _render_angel_eyes(console, "ffuf", findings)
+    console.print(f"[bold green]ffuf exit code:[/bold green] {result.exit_code}")
+    if result.exit_code != 0 and result.stderr:
+        console.print(f"[bold red]{result.stderr}[/bold red]")
+    return result.exit_code == 0
+
+
 def run_projectdiscovery_batch_tool(
     console: Console,
     connection,
@@ -365,6 +414,8 @@ def run_chained_recon_workflow(
     target: str,
     scan_dir: Path,
     workflow_name: str = "pd_chain",
+    use_ffuf: bool = True,
+    use_gobuster: bool = False,
 ) -> bool:
     if workflow_name not in {"pd_chain", "pd_web_chain", "light_recon", "deep_recon", "js_web_chain"}:
         console.print(f"[bold red]Unsupported workflow:[/bold red] {workflow_name}")
@@ -372,10 +423,10 @@ def run_chained_recon_workflow(
 
     workflow_label = {
         "pd_chain": "subfinder -> httpx -> naabu",
-        "pd_web_chain": "subfinder -> httpx -> nuclei",
+        "pd_web_chain": "subfinder -> httpx -> katana -> ffuf -> nuclei",
         "light_recon": "assetfinder + subfinder -> httpx",
-        "deep_recon": "assetfinder + subfinder + amass -> dnsx -> httpx -> naabu -> nuclei",
-        "js_web_chain": "subfinder -> httpx -> katana -> nuclei",
+        "deep_recon": "assetfinder + subfinder + amass -> dnsx -> httpx -> naabu -> ffuf -> nuclei",
+        "js_web_chain": "subfinder -> httpx -> katana -> ffuf -> nuclei",
     }[workflow_name]
     console.print(
         Panel.fit(
@@ -435,6 +486,15 @@ def run_chained_recon_workflow(
         )
         if not naabu_success or workflow_name == "pd_chain":
             return naabu_success
+        if not _run_web_enum_targets(
+            console,
+            connection,
+            targets=live_http_targets,
+            scan_dir=scan_dir,
+            use_ffuf=use_ffuf,
+            use_gobuster=use_gobuster,
+        ):
+            console.print("[bold yellow]Continuing after partial web-path enumeration failures.[/bold yellow]")
         nuclei_success, _ = run_projectdiscovery_batch_tool(
             console,
             connection,
@@ -446,7 +506,7 @@ def run_chained_recon_workflow(
         )
         return nuclei_success
 
-    if workflow_name == "js_web_chain":
+    if workflow_name in {"pd_web_chain", "js_web_chain"}:
         katana_success, katana_findings = run_projectdiscovery_batch_tool(
             console,
             connection,
@@ -461,6 +521,15 @@ def run_chained_recon_workflow(
         katana_targets = _unique_targets(finding.get("host", "") for finding in katana_findings if finding.get("host"))
         if not katana_targets:
             katana_targets = live_http_targets
+        if not _run_web_enum_targets(
+            console,
+            connection,
+            targets=live_http_targets,
+            scan_dir=scan_dir,
+            use_ffuf=use_ffuf,
+            use_gobuster=use_gobuster,
+        ):
+            console.print("[bold yellow]Continuing after partial web-path enumeration failures.[/bold yellow]")
         nuclei_success, _ = run_projectdiscovery_batch_tool(
             console,
             connection,
@@ -471,6 +540,16 @@ def run_chained_recon_workflow(
             history_target=f"{workflow_name}:{target}:nuclei",
         )
         return nuclei_success
+
+    if not _run_web_enum_targets(
+        console,
+        connection,
+        targets=live_http_targets,
+        scan_dir=scan_dir,
+        use_ffuf=use_ffuf,
+        use_gobuster=use_gobuster,
+    ):
+        console.print("[bold yellow]Continuing after partial web-path enumeration failures.[/bold yellow]")
 
     nuclei_success, _ = run_projectdiscovery_batch_tool(
         console,
@@ -556,7 +635,7 @@ def _prompt_gobuster_retry(console: Console, exclude_length: str) -> bool:
 
 
 def _render_angel_eyes(console: Console, tool_name: str, findings: list[dict[str, str]]) -> None:
-    if tool_name not in {"gobuster", "katana", "httpx", "nuclei"}:
+    if tool_name not in {"gobuster", "ffuf", "katana", "httpx", "nuclei"}:
         return
     rows = [
         {
@@ -608,3 +687,27 @@ def _discover_subdomains(
             if finding.get("host")
         )
     return _unique_targets(collected)
+
+
+def _run_web_enum_targets(
+    console: Console,
+    connection,
+    *,
+    targets: list[str],
+    scan_dir: Path,
+    use_ffuf: bool,
+    use_gobuster: bool,
+) -> bool:
+    success = True
+    for http_target in targets:
+        if not run_gobuster(
+            console,
+            connection,
+            target=http_target,
+            scan_dir=scan_dir,
+            interactive_retry=False,
+            use_ffuf=use_ffuf and not use_gobuster,
+            force_gobuster=use_gobuster,
+        ):
+            success = False
+    return success

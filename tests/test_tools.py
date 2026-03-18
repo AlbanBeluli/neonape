@@ -1,4 +1,8 @@
-from neon_ape.commands.tools import _default_batch_history_target, _gobuster_wildcard_details, _gobuster_wildcard_hint
+from pathlib import Path
+
+from rich.console import Console
+
+from neon_ape.commands.tools import _default_batch_history_target, _gobuster_wildcard_details, _gobuster_wildcard_hint, run_gobuster
 
 
 def test_default_batch_history_target_prefers_workflow_name() -> None:
@@ -30,3 +34,36 @@ def test_gobuster_wildcard_details_extracts_fields() -> None:
     )
     details = _gobuster_wildcard_details(stderr)
     assert details == {"status_code": "200", "content_length": "24824"}
+
+
+def test_run_gobuster_falls_back_to_legacy_gobuster(monkeypatch, tmp_path) -> None:
+    console = Console(record=True)
+    calls: list[str] = []
+
+    monkeypatch.setattr("neon_ape.commands.tools.run_ffuf", lambda *args, **kwargs: calls.append("ffuf") or False)
+    monkeypatch.setattr("neon_ape.commands.tools.build_gobuster_command", lambda *args, **kwargs: ("https://example.com", ["gobuster"]))
+    monkeypatch.setattr(
+        "neon_ape.commands.tools.execute_gobuster",
+        lambda *args, **kwargs: type(
+            "Result",
+            (),
+            {
+                "tool_name": "gobuster",
+                "target": "https://example.com",
+                "command": ["gobuster"],
+                "stdout": "",
+                "stderr": "",
+                "exit_code": 0,
+                "raw_output_path": str(Path(tmp_path) / "gobuster.txt"),
+            },
+        )(),
+    )
+    monkeypatch.setattr("neon_ape.commands.tools.parse_gobuster_output", lambda *args, **kwargs: [])
+    monkeypatch.setattr("neon_ape.commands.tools.record_scan", lambda *args, **kwargs: None)
+    monkeypatch.setattr("neon_ape.commands.tools.build_tool_output_table", lambda *args, **kwargs: "")
+    monkeypatch.setattr("neon_ape.commands.tools._render_angel_eyes", lambda *args, **kwargs: None)
+
+    success = run_gobuster(console, object(), target="example.com", scan_dir=tmp_path)
+    assert success is True
+    assert calls == ["ffuf"]
+    assert "Falling back to legacy Gobuster flow" in console.export_text()

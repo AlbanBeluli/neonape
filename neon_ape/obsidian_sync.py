@@ -471,6 +471,13 @@ def render_findings_markdown(target: str, scope: str, checklist: str, overview: 
             [[str(item.get("host", "-")), str(item.get("value", "-"))] for item in overview.get("web_paths", {}).get("katana", [])],
         ),
         "",
+        "### ffuf",
+        "",
+        render_markdown_table(
+            ["Path", "Status"],
+            [[str(item.get("host", "-")), str(item.get("value", "-"))] for item in overview.get("web_paths", {}).get("ffuf", [])],
+        ),
+        "",
         "### Gobuster",
         "",
         render_markdown_table(

@@ -66,6 +66,15 @@ def test_build_gobuster_web_path_table_renders_status() -> None:
     assert table.columns[1]._cells == ["301"]
 
 
+def test_build_ffuf_web_path_table_renders_status() -> None:
+    table = build_web_path_table(
+        [{"host": "/admin", "value": "200 len=42 words=1 lines=1"}],
+        "ffuf",
+    )
+    assert table.columns[0]._cells == ["/admin"]
+    assert table.columns[1]._cells == ["200 len=42 words=1 lines=1"]
+
+
 def test_domain_and_review_summary_panels_include_web_path_counts() -> None:
     overview = {
         "scans": [],
@@ -74,13 +83,15 @@ def test_domain_and_review_summary_panels_include_web_path_counts() -> None:
         "inventory": [],
         "reviews": [],
         "angel_eyes": {"items": [{"path": "/.env", "risk_score": 95}], "grouped": {}},
-        "web_paths": {"katana": [{"host": "a", "value": "crawl"}], "gobuster": [{"host": "/admin", "value": "301"}]},
+        "web_paths": {"katana": [{"host": "a", "value": "crawl"}], "ffuf": [{"host": "/.env", "value": "200"}], "gobuster": [{"host": "/admin", "value": "301"}]},
     }
     domain_panel = build_domain_summary_panel("example.com", overview)
     review_panel = build_review_summary_panel("example.com", overview)
     assert "Katana Paths" in str(domain_panel.renderable)
+    assert "ffuf Paths" in str(domain_panel.renderable)
     assert "Gobuster Paths" in str(domain_panel.renderable)
     assert "Katana Paths" in str(review_panel.renderable)
+    assert "ffuf Paths" in str(review_panel.renderable)
     assert "Gobuster Paths" in str(review_panel.renderable)
     assert "Angel Eyes" in str(review_panel.renderable)
 

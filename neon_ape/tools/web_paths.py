@@ -113,7 +113,7 @@ def build_web_path_review_items(items: list[dict[str, object]]) -> list[dict[str
 
 
 def _observation_from_finding(tool_name: str, finding: dict[str, str]) -> SensitivePath | None:
-    if tool_name == "gobuster" and finding.get("type") == "web_path":
+    if tool_name in {"gobuster", "ffuf"} and finding.get("type") == "web_path":
         return SensitivePath.from_observation(
             raw_path=finding.get("host", finding.get("key", "")),
             source_tool=tool_name,

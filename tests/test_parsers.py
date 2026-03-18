@@ -7,6 +7,7 @@ from neon_ape.tools.projectdiscovery import (
     parse_projectdiscovery_output,
 )
 from neon_ape.tools.base import run_command
+from neon_ape.tools.ffuf_wrapper import build_ffuf_command, parse_ffuf_output
 from neon_ape.tools.web_enum import build_gobuster_command, parse_gobuster_output
 from neon_ape.tools.web_paths import correlate_sensitive_paths
 
@@ -136,6 +137,20 @@ def test_parse_gobuster_output_extracts_paths(tmp_path) -> None:
     assert findings[0]["status_code"] == "200"
 
 
+def test_parse_ffuf_output_extracts_paths(tmp_path) -> None:
+    output = tmp_path / "ffuf.jsonl"
+    output.write_text(
+        '{"url":"https://example.com/.env","status":200,"length":42,"words":1,"lines":1,"input":{"FUZZ":".env"}}\n',
+        encoding="utf-8",
+    )
+    findings = parse_ffuf_output(output)
+    assert findings[0]["type"] == "web_path"
+    assert findings[0]["host"] == "/.env"
+    assert findings[0]["category"] == "Secrets"
+    assert findings[0]["risk_score"] == "100"
+    assert findings[0]["status_code"] == "200"
+
+
 def test_correlate_sensitive_paths_combines_sources() -> None:
     items = correlate_sensitive_paths(
         [
@@ -176,6 +191,13 @@ def test_build_gobuster_command_adds_exclude_length(tmp_path, monkeypatch) -> No
     _, command = build_gobuster_command("example.com", tmp_path / "gobuster.txt", exclude_length="24824")
     assert "--exclude-length" in command
     assert "24824" in command
+
+
+def test_build_ffuf_command_adds_fuzz_placeholder(tmp_path, monkeypatch) -> None:
+    monkeypatch.setattr("neon_ape.tools.ffuf_wrapper.ensure_ffuf_wordlist", lambda path: Path("/tmp/wordlist.txt"))
+    validated, command = build_ffuf_command("example.com", tmp_path / "ffuf.jsonl")
+    assert validated == "https://example.com"
+    assert f"{validated}/FUZZ" in command
 
 
 def test_render_command_preview_masks_home_paths(monkeypatch) -> None:

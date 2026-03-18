@@ -177,7 +177,7 @@ def _prompt_single_tool(
 ) -> str:
     tool_name = Prompt.ask(
         "[bold cyan]Tool[/bold cyan]",
-        choices=["nmap", "subfinder", "assetfinder", "amass", "dnsx", "httpx", "naabu", "nuclei", "katana", "gobuster", "b"],
+        choices=["nmap", "subfinder", "assetfinder", "amass", "dnsx", "httpx", "naabu", "nuclei", "katana", "ffuf", "gobuster", "b"],
         default="nmap",
     )
     if tool_name == "b":
@@ -200,10 +200,17 @@ def _prompt_single_tool(
         console.print(build_missing_tools_panel([tool_name]))
         _pause(console)
         return f"{tool_name} is not installed."
-    if tool_name == "gobuster":
-        success = run_gobuster(console, connection, target=target, scan_dir=scan_dir)
+    if tool_name in {"gobuster", "ffuf"}:
+        success = run_gobuster(
+            console,
+            connection,
+            target=target,
+            scan_dir=scan_dir,
+            use_ffuf=tool_name == "ffuf",
+            force_gobuster=tool_name == "gobuster",
+        )
         _pause(console)
-        return f"Ran gobuster against {target}. Status: {'success' if success else 'failed'}."
+        return f"Ran {tool_name} against {target}. Status: {'success' if success else 'failed'}."
     success = run_projectdiscovery_tool(console, connection, tool_name=tool_name, target=target, scan_dir=scan_dir)
     _pause(console)
     return f"Ran {tool_name} against {target}. Status: {'success' if success else 'failed'}."

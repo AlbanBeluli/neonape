@@ -12,7 +12,7 @@ def build_adam_manual() -> Panel:
     content = Group(
         Panel.fit(
             f"{ADAM_BANNER}\n\n[bold red]ADAM OPERATOR MANUAL[/bold red]\n"
-            "[bold orange3]The First Angel: autonomous recon, Angel Eyes review, Obsidian sync, MAGI follow-through.[/bold orange3]",
+            "[bold orange3]The First Angel: autonomous recon, ffuf-first Angel Eyes review, Obsidian sync, MAGI follow-through.[/bold orange3]",
             title="Adam",
             style="bold red",
         ),
@@ -44,7 +44,7 @@ def _adam_flow() -> Group:
     table.add_row("1", "subfinder discovers scoped subdomains")
     table.add_row("2", "httpx validates live web targets")
     table.add_row("3", "katana crawls reachable paths")
-    table.add_row("4", "gobuster reviews exposed directories and sensitive paths")
+    table.add_row("4", "ffuf reviews exposed directories and sensitive paths, with Gobuster fallback kept available")
     table.add_row("5", "nuclei runs a bounded live triage pass")
     table.add_row("6", "Angel Eyes scores web exposure risk")
     table.add_row("7", "LLM triage writes defensive review context")

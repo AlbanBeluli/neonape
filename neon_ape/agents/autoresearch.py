@@ -190,7 +190,7 @@ SKILL_REGISTRY: dict[str, SkillProfile] = {
         ),
         default_scenarios=(
             "A target completes recon and the operator needs exports, daily reports, and MAGI continuation.",
-            "A partially failing nuclei or gobuster stage should still produce a usable operator flow.",
+            "A partially failing nuclei or ffuf web-path stage should still produce a usable operator flow.",
             "An Adam run with autoresearch should remain understandable instead of feeling bolted on.",
         ),
         mutation_bank=(

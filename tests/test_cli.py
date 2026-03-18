@@ -94,6 +94,13 @@ def test_parse_gobuster_tool_flag() -> None:
     assert args.target == "https://example.com"
 
 
+def test_parse_ffuf_tool_flag() -> None:
+    parser = build_parser()
+    args = parser.parse_args(["--tool", "ffuf", "--target", "https://example.com"])
+    assert args.tool == "ffuf"
+    assert args.target == "https://example.com"
+
+
 def test_parse_assetfinder_tool_flag() -> None:
     parser = build_parser()
     args = parser.parse_args(["--tool", "assetfinder", "--target", "example.com"])
@@ -194,6 +201,13 @@ def test_parse_adam_command() -> None:
     assert args.pdf is True
 
 
+def test_parse_adam_use_gobuster_flag() -> None:
+    parser = build_parser()
+    args = parser.parse_args(["adam", "--target", "example.com", "--use-gobuster"])
+    assert args.command == "adam"
+    assert args.use_gobuster is True
+
+
 def test_parse_adam_autoresearch_command() -> None:
     parser = build_parser()
     args = parser.parse_args(["adam", "--autoresearch", "--autoresearch-target", "angel-eyes", "--target", "example.com"])
@@ -228,7 +242,14 @@ def test_parse_autoresearch_command() -> None:
     assert args.iterations == 4
     assert args.baseline_runs == 8
     assert args.pdf is True
-    assert args.overnight is True
+
+
+def test_parse_autoresearch_use_ffuf_flag() -> None:
+    parser = build_parser()
+    args = parser.parse_args(["autoresearch", "--target", "angel-eyes", "--use-ffuf"])
+    assert args.command == "autoresearch"
+    assert args.use_ffuf is True
+    assert args.overnight is False
 
 
 def test_parse_autoresearch_rounds_alias() -> None:

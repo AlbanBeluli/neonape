@@ -490,8 +490,8 @@ def review_overview(
 
 
 def _split_web_paths(rows: list[dict[str, str | int | None]]) -> dict[str, list[dict[str, str | int | None]]]:
-    result = {"katana": [], "gobuster": []}
-    seen: dict[str, set[tuple[str, str]]] = {"katana": set(), "gobuster": set()}
+    result = {"katana": [], "ffuf": [], "gobuster": []}
+    seen: dict[str, set[tuple[str, str]]] = {"katana": set(), "ffuf": set(), "gobuster": set()}
     for row in rows:
         tool_name = str(row.get("tool_name", "") or "")
         if tool_name not in result:

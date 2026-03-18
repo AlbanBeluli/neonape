@@ -34,6 +34,7 @@ def run_review(
         console.print(build_angel_eyes_table(overview["angel_eyes"]["grouped"].get(category, []), category))
     if not web_paths_only:
         console.print(build_web_path_table(overview["web_paths"]["katana"], "katana"))
+        console.print(build_web_path_table(overview["web_paths"]["ffuf"], "ffuf"))
         console.print(build_web_path_table(overview["web_paths"]["gobuster"], "gobuster"))
         console.print(build_inventory_table(overview["inventory"]))
         console.print(build_review_findings_table(overview["reviews"]))

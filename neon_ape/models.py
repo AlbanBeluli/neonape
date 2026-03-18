@@ -24,7 +24,7 @@ class SensitivePath(BaseModel):
     - Source adjustment:
       - nuclei: +10
       - httpx: +5
-      - gobuster/katana: +0
+      - ffuf/gobuster/katana: +0
     - Evidence adjustment:
       - known response length > 0: +5
       - each extra confirming source after the first: +10, capped at +20
@@ -40,6 +40,7 @@ class SensitivePath(BaseModel):
     SOURCE_BONUS: ClassVar[dict[str, int]] = {
         "nuclei": 10,
         "httpx": 5,
+        "ffuf": 0,
         "gobuster": 0,
         "katana": 0,
     }

@@ -115,7 +115,7 @@
       "step_order": 13,
       "section_name": "Web Path Review",
       "title": "Review web paths and exposed assets",
-      "guide_text": "Use Angel Eyes evidence from gobuster, katana, httpx, and nuclei to review sensitive files, logs, repo metadata, and server configuration paths.",
+      "guide_text": "Use Angel Eyes evidence from ffuf, Gobuster fallback runs, katana, httpx, and nuclei to review sensitive files, logs, repo metadata, and server configuration paths.",
       "example_command": "neonape review --target <target> --web-paths",
       "action_tool": null,
       "action_profile": null

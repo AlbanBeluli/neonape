@@ -27,7 +27,7 @@ from neon_ape.tools.base import ToolResult, run_command
 from neon_ape.tools.projectdiscovery import parse_projectdiscovery_output
 from neon_ape.ui.layout import build_adam_completion_panel, build_adam_intro_panel
 from neon_ape.workflows.orchestrator import build_daily_report_dir, copy_daily_reports, is_macos, open_in_finder, speak_completion
-ADAM_REQUIRED_TOOLS = ("subfinder", "httpx", "katana", "gobuster", "nuclei")
+ADAM_REQUIRED_TOOLS = ("subfinder", "httpx", "katana", "nuclei")
 ADAM_NUCLEI_TIMEOUT = 180
 ADAM_NUCLEI_SEVERITIES = "medium,high,critical"
 
@@ -42,6 +42,8 @@ def run_adam(
     pdf_enabled: bool = False,
     autoresearch_enabled: bool = False,
     autoresearch_target: str | None = None,
+    use_ffuf: bool = True,
+    use_gobuster: bool = False,
 ) -> bool:
     console.print(build_adam_intro_panel())
     active_target = (target or "").strip()
@@ -52,6 +54,11 @@ def run_adam(
         return False
 
     missing = [tool for tool in ADAM_REQUIRED_TOOLS if tool not in detected_tools]
+    if use_ffuf and "ffuf" not in detected_tools and "gobuster" not in detected_tools:
+        missing.append("ffuf")
+    if use_gobuster and "gobuster" not in detected_tools:
+        missing.append("gobuster")
+    missing = list(dict.fromkeys(missing))
     if missing:
         console.print(f"[bold red]Adam cannot proceed. Missing tools:[/bold red] {', '.join(missing)}")
         return False
@@ -106,13 +113,21 @@ def run_adam(
             return False
 
         progress.update(task, description="Enumerating exposed directories")
-        gobuster_success = True
+        web_enum_success = True
         for http_target in live_http_targets:
-            if not run_gobuster(console, connection, target=http_target, scan_dir=config.scan_dir, interactive_retry=False):
-                gobuster_success = False
+            if not run_gobuster(
+                console,
+                connection,
+                target=http_target,
+                scan_dir=config.scan_dir,
+                interactive_retry=False,
+                use_ffuf=use_ffuf,
+                force_gobuster=use_gobuster,
+            ):
+                web_enum_success = False
         progress.advance(task)
-        if not gobuster_success:
-            console.print("[bold yellow]Adam completed with partial gobuster failures.[/bold yellow]")
+        if not web_enum_success:
+            console.print("[bold yellow]Adam completed with partial web-path enumeration failures.[/bold yellow]")
 
         progress.update(task, description="Launching nuclei review")
         nuclei_targets = live_http_targets[:2]

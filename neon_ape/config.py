@@ -24,6 +24,7 @@ COMMON_RECON_TOOLS = (
     "nmap",
     "whois",
     "dig",
+    "ffuf",
     "gobuster",
     "dirb",
     "nikto",

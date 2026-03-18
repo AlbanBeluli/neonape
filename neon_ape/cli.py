@@ -25,6 +25,7 @@ def build_parser() -> argparse.ArgumentParser:
             "  neonape adam\n"
             "  neonape adam --target example.com\n"
             "  neonape adam --target example.com --pdf\n"
+            "  neonape adam --target example.com --use-gobuster\n"
             "  neonape adam --autoresearch --target example.com\n\n"
             "Autoresearch:\n"
             "  neonape autoresearch --target magi-checklist --auto\n"
@@ -69,7 +70,7 @@ def build_parser() -> argparse.ArgumentParser:
     setup_subparsers = setup_parser.add_subparsers(dest="setup_command", required=True)
     setup_notifications = setup_subparsers.add_parser("notifications", help="Install terminal-notifier on macOS via Homebrew.")
     setup_notifications.add_argument("--yes", action="store_true", help="Skip the confirmation prompt.")
-    setup_tools = setup_subparsers.add_parser("tools", help="Install managed local recon tools such as whois, dig, nmap, and gobuster.")
+    setup_tools = setup_subparsers.add_parser("tools", help="Install managed local recon tools such as whois, dig, nmap, ffuf, and Gobuster fallback support.")
     setup_tools.add_argument("--yes", action="store_true", help="Skip the confirmation prompt.")
     config_parser = subparsers.add_parser("config", help="Show or update Neon Ape user config.")
     config_subparsers = config_parser.add_subparsers(dest="config_action", required=True)
@@ -83,6 +84,9 @@ def build_parser() -> argparse.ArgumentParser:
     adam_parser.add_argument("--pdf", action="store_true", help="Generate a PDF report in the daily report folder when Adam completes.")
     adam_parser.add_argument("--autoresearch", action="store_true", help="Run autoresearch against MAGI Checklist or Angel Eyes after Adam finishes recon.")
     adam_parser.add_argument("--autoresearch-target", choices=("magi-checklist", "angel-eyes", "nmap-wrappers", "ui-panels", "prompt-templates", "triage-prompt", "adam-workflow"), help="Optional explicit skill for Adam's autoresearch phase.")
+    adam_engine = adam_parser.add_mutually_exclusive_group()
+    adam_engine.add_argument("--use-ffuf", action="store_true", help="Force ffuf for web-path enumeration (default).")
+    adam_engine.add_argument("--use-gobuster", action="store_true", help="Force the legacy Gobuster path instead of ffuf.")
     autoresearch_parser = subparsers.add_parser("autoresearch", help="Run the local autoresearch loop against a Neon Ape skill.")
     autoresearch_parser.add_argument("--target", choices=("magi-checklist", "angel-eyes", "nmap-wrappers", "ui-panels", "prompt-templates", "triage-prompt", "adam-workflow"), help="Skill target to improve.")
     autoresearch_parser.add_argument("--question", action="append", default=[], help="Yes/no research question. Can be repeated up to six times.")
@@ -97,6 +101,9 @@ def build_parser() -> argparse.ArgumentParser:
     autoresearch_parser.add_argument("--no-voice", action="store_true", help="Suppress Daniel voice lines for this autoresearch run.")
     autoresearch_parser.add_argument("--dry-run", action="store_true", help="Run scoring and diff generation without persisting a new active version.")
     autoresearch_parser.add_argument("--overnight", action="store_true", help="Label the run as an overnight autonomous session in the dashboard and changelog.")
+    autoresearch_engine = autoresearch_parser.add_mutually_exclusive_group()
+    autoresearch_engine.add_argument("--use-ffuf", action="store_true", help="Use ffuf during Adam-driven web-path evaluation stages.")
+    autoresearch_engine.add_argument("--use-gobuster", action="store_true", help="Use the legacy Gobuster path during Adam-driven web-path evaluation stages.")
     skill_parser = subparsers.add_parser("skill", help="Inspect or switch persistent Neon Ape skill versions.")
     skill_subparsers = skill_parser.add_subparsers(dest="skill_command", required=True)
     skill_subparsers.add_parser("list", help="List saved skills and their active versions.")
@@ -213,7 +220,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--tool",
-        choices=("subfinder", "assetfinder", "amass", "httpx", "naabu", "dnsx", "nuclei", "katana", "gobuster"),
+        choices=("subfinder", "assetfinder", "amass", "httpx", "naabu", "dnsx", "nuclei", "katana", "ffuf", "gobuster"),
         help="Execute a supported recon or web-enumeration tool with safe defaults.",
     )
     parser.add_argument(
@@ -292,6 +299,8 @@ def main() -> int:
     app.adam_pdf = getattr(args, "pdf", False) if args.command == "adam" else False
     app.adam_autoresearch = getattr(args, "autoresearch", False) if args.command == "adam" else False
     app.adam_autoresearch_target = getattr(args, "autoresearch_target", None) if args.command == "adam" else None
+    app.use_ffuf = getattr(args, "use_ffuf", False)
+    app.use_gobuster = getattr(args, "use_gobuster", False)
     app.autoresearch_target = getattr(args, "target", None) if args.command == "autoresearch" else None
     app.autoresearch_questions = getattr(args, "question", []) if args.command == "autoresearch" else []
     app.autoresearch_scenarios = getattr(args, "scenario", []) if args.command == "autoresearch" else []

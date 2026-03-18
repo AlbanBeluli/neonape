@@ -97,6 +97,7 @@ def run_db_view(
         console.print(build_scans_table(_sanitize_scans(overview["scans"], show_targets=show_targets), mask_targets=not show_targets))
         console.print(build_recent_findings_table(overview["findings"]))
         console.print(build_web_path_table(overview["web_paths"]["katana"], "katana"))
+        console.print(build_web_path_table(overview["web_paths"]["ffuf"], "ffuf"))
         console.print(build_web_path_table(overview["web_paths"]["gobuster"], "gobuster"))
         console.print(build_inventory_table(overview["inventory"]))
         console.print(build_review_findings_table(overview["reviews"]))

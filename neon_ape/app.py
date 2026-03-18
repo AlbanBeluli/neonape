@@ -101,6 +101,8 @@ class NeonApeApp:
         self.adam_pdf = False
         self.adam_autoresearch = False
         self.adam_autoresearch_target: str | None = None
+        self.use_ffuf = False
+        self.use_gobuster = False
         self.autoresearch_target: str | None = None
         self.autoresearch_questions: list[str] = []
         self.autoresearch_scenarios: list[str] = []
@@ -193,6 +195,8 @@ class NeonApeApp:
                 pdf_enabled=self.adam_pdf,
                 autoresearch_enabled=self.adam_autoresearch,
                 autoresearch_target=self.adam_autoresearch_target,
+                use_ffuf=self.use_ffuf or not self.use_gobuster,
+                use_gobuster=self.use_gobuster,
             )
             if not success:
                 raise SystemExit(1)
@@ -448,12 +452,14 @@ class NeonApeApp:
             if self.tool not in detected_tools:
                 self.console.print(build_missing_tools_panel([self.tool]))
                 return
-            if self.tool == "gobuster":
+            if self.tool in {"gobuster", "ffuf"}:
                 run_gobuster(
                     self.console,
                     connection,
                     target=self.target,
                     scan_dir=self.config.scan_dir,
+                    use_ffuf=self.tool == "ffuf" or (self.use_ffuf and not self.use_gobuster),
+                    force_gobuster=self.tool == "gobuster" and not self.use_ffuf,
                 )
                 return
             run_projectdiscovery_tool(
@@ -468,12 +474,15 @@ class NeonApeApp:
         if self.workflow:
             workflow_tools = {
                 "pd_chain": {"subfinder", "httpx", "naabu"},
-                "pd_web_chain": {"subfinder", "httpx", "nuclei"},
+                "pd_web_chain": {"subfinder", "httpx", "katana", "nuclei"},
                 "light_recon": {"assetfinder", "subfinder", "httpx"},
                 "deep_recon": {"assetfinder", "subfinder", "amass", "dnsx", "httpx", "naabu", "nuclei"},
                 "js_web_chain": {"subfinder", "httpx", "katana", "nuclei"},
             }
             missing_tools = sorted(tool for tool in workflow_tools.get(self.workflow, set()) if tool not in detected_tools)
+            if self.workflow in {"pd_web_chain", "deep_recon", "js_web_chain"} and "ffuf" not in detected_tools and "gobuster" not in detected_tools:
+                missing_tools.append("ffuf")
+            missing_tools = sorted(set(missing_tools))
             if missing_tools:
                 self.console.print(build_missing_tools_panel(missing_tools))
                 return
@@ -483,6 +492,8 @@ class NeonApeApp:
                 target=self.target,
                 scan_dir=self.config.scan_dir,
                 workflow_name=self.workflow,
+                use_ffuf=self.use_ffuf or not self.use_gobuster,
+                use_gobuster=self.use_gobuster,
             )
             return
 
