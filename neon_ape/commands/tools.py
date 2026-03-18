@@ -7,12 +7,14 @@ from urllib.parse import urlparse
 from rich.console import Console
 from rich.panel import Panel
 
+from neon_ape.config import detect_installed_tools
+from neon_ape.commands.setup_tools import offer_missing_tool_setup
 from neon_ape.db.repository import get_checklist_item, mark_checklist_item_status, record_scan
 from neon_ape.services.validation import validate_target
 from neon_ape.tools.base import ToolResult
 from neon_ape.tools.web_paths import correlate_sensitive_paths, grouped_sensitive_paths
 from neon_ape.tools.nmap import build_nmap_command, execute_nmap, parse_nmap_xml, render_command_preview
-from neon_ape.tools.passive_recon import build_passive_recon_findings
+from neon_ape.tools.passive_recon import execute_passive_recon
 from neon_ape.tools.projectdiscovery import (
     build_projectdiscovery_batch_command,
     build_projectdiscovery_command,
@@ -57,7 +59,13 @@ def run_checklist_step(
 
     if action_tool not in detected_tools:
         console.print(build_missing_tools_panel([str(action_tool)]))
-        return profile, None
+        if not offer_missing_tool_setup(console, missing_tools=[str(action_tool)]):
+            return profile, None
+        detected_tools.clear()
+        detected_tools.update(detect_installed_tools())
+        if action_tool not in detected_tools:
+            console.print(build_missing_tools_panel([str(action_tool)]))
+            return profile, None
 
     console.print(
         Panel.fit(
@@ -82,7 +90,14 @@ def run_checklist_step(
         missing_tools = sorted(tool for tool in workflow_tools.get(step_profile, set()) if tool not in detected_tools)
         if missing_tools:
             console.print(build_missing_tools_panel(missing_tools))
-            return profile, action_tool
+            if not offer_missing_tool_setup(console, missing_tools=missing_tools):
+                return profile, action_tool
+            detected_tools.clear()
+            detected_tools.update(detect_installed_tools())
+            missing_tools = sorted(tool for tool in workflow_tools.get(step_profile, set()) if tool not in detected_tools)
+            if missing_tools:
+                console.print(build_missing_tools_panel(missing_tools))
+                return profile, action_tool
         success = run_chained_recon_workflow(
             console,
             connection,
@@ -209,16 +224,7 @@ def run_passive_recon(
         )
     )
     try:
-        findings = build_passive_recon_findings(profile, validated_target)
-        result = ToolResult(
-            tool_name="passive_recon",
-            target=validated_target,
-            command=["passive_recon", profile, validated_target],
-            stdout="",
-            stderr="",
-            exit_code=0,
-            raw_output_path="",
-        )
+        result, findings = execute_passive_recon(profile, validated_target)
     except Exception as exc:  # noqa: BLE001 - deliberate local guard for terminal UX
         result = ToolResult(
             tool_name="passive_recon",

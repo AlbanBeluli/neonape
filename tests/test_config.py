@@ -3,7 +3,7 @@ from pathlib import Path
 from rich.console import Console
 
 from neon_ape.commands.config import run_config_command
-from neon_ape.config import AppConfig, load_user_config, save_user_config, update_user_config
+from neon_ape.config import AppConfig, detect_installed_tools, load_user_config, save_user_config, update_user_config
 
 
 def test_default_config_uses_home_and_env(monkeypatch) -> None:
@@ -49,6 +49,11 @@ def test_ensure_directories_creates_runtime_dirs(tmp_path) -> None:
 
     assert config.data_dir.is_dir()
     assert config.scan_dir.is_dir()
+
+
+def test_detect_installed_tools_includes_builtin_passive_recon() -> None:
+    detected = detect_installed_tools()
+    assert detected["passive_recon"] == "builtin"
 
 
 def test_default_config_reads_toml_file(monkeypatch, tmp_path) -> None:

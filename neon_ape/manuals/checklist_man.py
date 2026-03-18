@@ -30,7 +30,7 @@ def _checklist_synopsis() -> Group:
     body.add_column()
     body.add_row("NAME", "neonape man checklist - dedicated MAGI checklist manual")
     body.add_row("VIEW", "neonape --show-checklist --init-only")
-    body.add_row("RUN STEP", "neonape --checklist-step 9 --target 192.168.1.10")
+    body.add_row("RUN STEP", "neonape --checklist-step 9 --target example.com")
     return Group(Rule("NAME / SYNOPSIS", style="magenta"), body)
 
 
@@ -87,8 +87,8 @@ def _checklist_examples() -> Group:
     table.add_column("Command")
     table.add_row("View checklist", "`neonape --show-checklist --init-only`")
     table.add_row("Run WHOIS step", "`neonape --checklist-step 2 --target example.com`")
-    table.add_row("Run host discovery", "`neonape --checklist-step 6 --target 192.168.1.0/24`")
-    table.add_row("Run service scan", "`neonape --checklist-step 9 --target 192.168.1.10`")
+    table.add_row("Run host discovery", "`neonape --checklist-step 6 --target example.com`")
+    table.add_row("Run service scan", "`neonape --checklist-step 9 --target example.com`")
     table.add_row("Review stored status", "`neonape db checklist`")
     return Group(Rule("EXAMPLES", style="magenta"), table)
 

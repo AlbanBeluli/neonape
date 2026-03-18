@@ -13,6 +13,7 @@ from neon_ape.manuals.main_man import render_manual
 from neon_ape.commands.notes import run_add_note, run_notes_listing, run_view_note
 from neon_ape.commands.config import run_config_command
 from neon_ape.commands.review import run_review
+from neon_ape.commands.setup_tools import run_tool_setup
 from neon_ape.commands.update import run_update
 from neon_ape.config import AppConfig, detect_installed_tools
 from neon_ape.db.repository import (
@@ -139,6 +140,8 @@ class NeonApeApp:
         if self.command == "setup":
             if self.setup_command == "notifications":
                 self._run_setup_notifications()
+            if self.setup_command == "tools":
+                self._run_setup_tools()
             return
 
         if self.command == "config":
@@ -476,6 +479,9 @@ class NeonApeApp:
             return
         error_text = completed.stderr.strip() or completed.stdout.strip() or f"brew exited with {completed.returncode}"
         self.console.print(f"[bold red]{error_text}[/bold red]")
+
+    def _run_setup_tools(self) -> None:
+        run_tool_setup(self.console, assume_yes=self.setup_yes)
 
     def _run_status(self) -> None:
         rows = list_saved_skills()

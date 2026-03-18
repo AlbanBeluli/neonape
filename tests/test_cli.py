@@ -44,6 +44,14 @@ def test_parse_setup_notifications_subcommand() -> None:
     assert args.yes is True
 
 
+def test_parse_setup_tools_subcommand() -> None:
+    parser = build_parser()
+    args = parser.parse_args(["setup", "tools", "--yes"])
+    assert args.command == "setup"
+    assert args.setup_command == "tools"
+    assert args.yes is True
+
+
 def test_parse_status_subcommand() -> None:
     parser = build_parser()
     args = parser.parse_args(["status"])

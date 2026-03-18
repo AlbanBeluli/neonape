@@ -46,6 +46,7 @@ def build_welcome_panel() -> Panel:
 def build_missing_tools_panel(tools: list[str]) -> Panel:
     hints = {
         "nmap": "Install nmap and verify `nmap --version` works.",
+        "passive_recon": "Install `whois` and `dig` or let Neon Ape use its built-in passive recon fallback.",
         "subfinder": "Install ProjectDiscovery subfinder and place it on PATH.",
         "assetfinder": "Install assetfinder and place it on PATH.",
         "amass": "Install amass and verify passive enumeration is available.",
@@ -61,9 +62,9 @@ def build_missing_tools_panel(tools: list[str]) -> Panel:
     package_manager = detect_package_manager()
     installer_hint = (
         f"Detected package manager: {package_manager}\n"
-        "Run `bash install_recon_tools.sh` from the repo root for a guided setup pass."
+        "Run `neonape setup tools --yes` for an automatic setup pass."
         if package_manager
-        else "Run `bash install_recon_tools.sh` from the repo root for guided package-manager detection."
+        else "Run `neonape setup tools --yes` after installing Homebrew or apt-get support."
     )
     body = (
         f"[bold red]Missing tools:[/bold red] {', '.join(unique_tools)}\n"

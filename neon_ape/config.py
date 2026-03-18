@@ -91,7 +91,7 @@ class AppConfig:
 
 
 def detect_installed_tools() -> dict[str, str]:
-    detected: dict[str, str] = {}
+    detected: dict[str, str] = {"passive_recon": "builtin"}
     for tool in (*COMMON_RECON_TOOLS, *PROJECT_DISCOVERY_TOOLS):
         path = which(tool)
         if path:

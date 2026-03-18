@@ -36,6 +36,7 @@ def build_parser() -> argparse.ArgumentParser:
             "  neonape skill use magi-checklist --version 2026-03-18\n\n"
             "Setup:\n"
             "  neonape setup notifications\n\n"
+            "  neonape setup tools --yes\n\n"
             "Workflows:\n"
             "  neonape --workflow pd_web_chain --target example.com\n"
             "  neonape --workflow light_recon --target example.com\n"
@@ -67,6 +68,8 @@ def build_parser() -> argparse.ArgumentParser:
     setup_subparsers = setup_parser.add_subparsers(dest="setup_command", required=True)
     setup_notifications = setup_subparsers.add_parser("notifications", help="Install terminal-notifier on macOS via Homebrew.")
     setup_notifications.add_argument("--yes", action="store_true", help="Skip the confirmation prompt.")
+    setup_tools = setup_subparsers.add_parser("tools", help="Install managed local recon tools such as whois, dig, nmap, and gobuster.")
+    setup_tools.add_argument("--yes", action="store_true", help="Skip the confirmation prompt.")
     config_parser = subparsers.add_parser("config", help="Show or update Neon Ape user config.")
     config_subparsers = config_parser.add_subparsers(dest="config_action", required=True)
     config_subparsers.add_parser("show", help="Show the effective Neon Ape config.")

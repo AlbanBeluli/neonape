@@ -17,7 +17,7 @@
       "section_name": "Angel Enumeration",
       "title": "Run WHOIS lookup",
       "guide_text": "Collect registrar, name server, and registration context as baseline passive recon for the scoped domain.",
-      "example_command": "python -m neon_ape.tools.passive_recon whois example.com",
+      "example_command": "python -m neon_ape.tools.passive_recon whois <target>",
       "action_tool": "passive_recon",
       "action_profile": "whois_lookup"
     },
@@ -26,7 +26,7 @@
       "section_name": "Angel Enumeration",
       "title": "Resolve core DNS records",
       "guide_text": "Resolve A records and baseline DNS information for the scoped domain before expanding the footprint.",
-      "example_command": "python -m neon_ape.tools.passive_recon dns-a example.com",
+      "example_command": "python -m neon_ape.tools.passive_recon dns-a <target>",
       "action_tool": "passive_recon",
       "action_profile": "dns_a_records"
     },
@@ -35,7 +35,7 @@
       "section_name": "Angel Enumeration",
       "title": "Discover subdomains with passive sources",
       "guide_text": "Use passive discovery sources to identify visible subdomains before deeper validation.",
-      "example_command": "subfinder -d example.com -oJ",
+      "example_command": "subfinder -d <target> -oJ",
       "action_tool": "subfinder",
       "action_profile": "passive_subdomains"
     },
@@ -53,7 +53,7 @@
       "section_name": "Eva Unit Scanner",
       "title": "Run host discovery",
       "guide_text": "Identify responsive hosts first and capture findings as structured data.",
-      "example_command": "nmap -sn 192.168.1.0/24",
+      "example_command": "nmap -sn <target>",
       "action_tool": "nmap",
       "action_profile": "host_discovery"
     },
@@ -62,7 +62,7 @@
       "section_name": "Eva Unit Scanner",
       "title": "Probe live web services",
       "guide_text": "Check reachable HTTP(S) services, titles, status codes, IPs, and technology fingerprints for scoped targets.",
-      "example_command": "httpx -json -status-code -title -tech-detect -web-server -ip -target https://example.com",
+      "example_command": "httpx -json -status-code -title -tech-detect -web-server -ip -target https://<target>",
       "action_tool": "httpx",
       "action_profile": "web_probe"
     },
@@ -71,7 +71,7 @@
       "section_name": "Eva Unit Scanner",
       "title": "Run port scanning",
       "guide_text": "Enumerate common exposed TCP ports on live hosts before deeper service review.",
-      "example_command": "naabu -json -top-ports 100 -list targets.txt",
+      "example_command": "naabu -json -top-ports 100 -host <target>",
       "action_tool": "naabu",
       "action_profile": "top_ports"
     },
@@ -80,7 +80,7 @@
       "section_name": "Eva Unit Scanner",
       "title": "Run service enumeration",
       "guide_text": "Enumerate open services and versions on in-scope hosts and store parsed output from Nmap XML.",
-      "example_command": "nmap -sV 192.168.1.10",
+      "example_command": "nmap -sV <target>",
       "action_tool": "nmap",
       "action_profile": "service_scan"
     },
@@ -89,7 +89,7 @@
       "section_name": "Eva Unit Scanner",
       "title": "Run aggressive service review",
       "guide_text": "Use the aggressive Nmap profile only after basic service results are available and within scope.",
-      "example_command": "nmap -A -T4 192.168.1.10",
+      "example_command": "nmap -A -T4 <target>",
       "action_tool": "nmap",
       "action_profile": "aggressive"
     },
@@ -98,7 +98,7 @@
       "section_name": "Service Enumeration",
       "title": "Review nuclei exposure checks",
       "guide_text": "Run template-driven web checks against validated live hosts and store results for later triage.",
-      "example_command": "nuclei -jsonl -severity info,low,medium,high,critical -u https://example.com",
+      "example_command": "nuclei -jsonl -severity info,low,medium,high,critical -u https://<target>",
       "action_tool": "nuclei",
       "action_profile": "default"
     },
@@ -107,7 +107,7 @@
       "section_name": "Eva Unit Scanner",
       "title": "Run chained web triage",
       "guide_text": "Discover subdomains, verify live web services, crawl where relevant, and run nuclei checks against reachable targets.",
-      "example_command": "neonape --workflow pd_web_chain --target example.com",
+      "example_command": "neonape --workflow pd_web_chain --target <target>",
       "action_tool": "workflow",
       "action_profile": "pd_web_chain"
     },
@@ -116,7 +116,7 @@
       "section_name": "Web Path Review",
       "title": "Review web paths and exposed assets",
       "guide_text": "Use Angel Eyes evidence from gobuster, katana, httpx, and nuclei to review sensitive files, logs, repo metadata, and server configuration paths.",
-      "example_command": "neonape review --target example.com --web-paths",
+      "example_command": "neonape review --target <target> --web-paths",
       "action_tool": null,
       "action_profile": null
     },
@@ -125,7 +125,7 @@
       "section_name": "MAGI Checklist",
       "title": "Record findings and next actions",
       "guide_text": "Capture validated findings, follow-up review work, and remediation notes in encrypted local storage and exported reports.",
-      "example_command": "neonape notes add --title \"Finding\" --body \"Observed exposed service\" --target example.com",
+      "example_command": "neonape notes add --title \"Finding\" --body \"Observed exposed service\" --target <target>",
       "action_tool": null,
       "action_profile": null
     }
