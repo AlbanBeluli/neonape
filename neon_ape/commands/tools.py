@@ -36,6 +36,7 @@ def run_checklist_step(
     detected_tools: dict[str, str],
     scan_dir: Path,
     profile: str,
+    auto_setup: bool = False,
 ) -> tuple[str, str | None]:
     item = get_checklist_item(connection, checklist_step)
     if item is None:
@@ -59,7 +60,7 @@ def run_checklist_step(
 
     if action_tool not in detected_tools:
         console.print(build_missing_tools_panel([str(action_tool)]))
-        if not offer_missing_tool_setup(console, missing_tools=[str(action_tool)]):
+        if not offer_missing_tool_setup(console, missing_tools=[str(action_tool)], assume_yes=auto_setup):
             return profile, None
         detected_tools.clear()
         detected_tools.update(detect_installed_tools())
@@ -90,7 +91,7 @@ def run_checklist_step(
         missing_tools = sorted(tool for tool in workflow_tools.get(step_profile, set()) if tool not in detected_tools)
         if missing_tools:
             console.print(build_missing_tools_panel(missing_tools))
-            if not offer_missing_tool_setup(console, missing_tools=missing_tools):
+            if not offer_missing_tool_setup(console, missing_tools=missing_tools, assume_yes=auto_setup):
                 return profile, action_tool
             detected_tools.clear()
             detected_tools.update(detect_installed_tools())

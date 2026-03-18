@@ -12,20 +12,20 @@ from rich.progress import BarColumn, Progress, SpinnerColumn, TextColumn
 from rich.prompt import Prompt
 
 from neon_ape.agents.autoresearch import run_autoresearch
+from neon_ape.agents.magi import run_magi_checklist
 from neon_ape.commands.review import run_review
 from neon_ape.commands.tools import (
     _discover_subdomains,
     _unique_targets,
-    run_checklist_step,
     run_gobuster,
     run_projectdiscovery_batch_tool,
 )
-from neon_ape.db.repository import checklist_summary, get_checklist_item, list_checklist_items, mark_checklist_item_status, record_scan, review_overview
+from neon_ape.db.repository import mark_checklist_item_status, record_scan, review_overview
 from neon_ape.obsidian_sync import resolve_vault_path, run_sync as run_obsidian_sync, sanitize_target_name
 from neon_ape.reports.pdf_generator import generate_pdf_report
 from neon_ape.tools.base import ToolResult, run_command
 from neon_ape.tools.projectdiscovery import parse_projectdiscovery_output
-from neon_ape.ui.layout import build_adam_completion_panel, build_adam_intro_panel, build_magi_execution_table
+from neon_ape.ui.layout import build_adam_completion_panel, build_adam_intro_panel
 from neon_ape.workflows.orchestrator import build_daily_report_dir, copy_daily_reports, is_macos, open_in_finder, speak_completion
 ADAM_REQUIRED_TOOLS = ("subfinder", "httpx", "katana", "gobuster", "nuclei")
 ADAM_NUCLEI_TIMEOUT = 180
@@ -207,12 +207,15 @@ def run_adam(
 
     _seed_adam_completed_steps(connection)
     console.print("[bold orange3]Loading MAGI checklist sequence...[/bold orange3]")
-    checklist_success = _run_magi_checklist(
+    checklist_success = run_magi_checklist(
         console,
         connection,
         config=config,
         detected_tools=detected_tools,
         target=active_target,
+        auto=True,
+        prompt_manual=False,
+        silent_completed=True,
     )
     if autoresearch_enabled:
         research_skill = autoresearch_target or ("angel-eyes" if highest_risk > 0 else "magi-checklist")
@@ -266,86 +269,6 @@ def _read_report_section(path: Path) -> str:
 def _seed_adam_completed_steps(connection) -> None:
     for step_order in (4, 7, 11, 12, 13):
         mark_checklist_item_status(connection, step_order, "done")
-
-
-def _run_magi_checklist(
-    console: Console,
-    connection,
-    *,
-    config,
-    detected_tools: dict[str, str],
-    target: str,
-) -> bool:
-    items = list_checklist_items(connection)
-    if not items:
-        return False
-
-    with Progress(
-        SpinnerColumn(style="bold red"),
-        TextColumn("[bold orange3]{task.description}[/bold orange3]"),
-        BarColumn(bar_width=28, style="red", complete_style="orange3"),
-        console=console,
-    ) as progress:
-        task = progress.add_task("MAGI is synchronizing...", total=len(items))
-        for item in items:
-            step_order = int(item.get("step_order", 0) or 0)
-            current = next((entry for entry in list_checklist_items(connection) if int(entry.get("step_order", 0) or 0) == step_order), item)
-            progress.update(task, description=f"MAGI step {step_order}: {item.get('title', '')}")
-            items = list_checklist_items(connection)
-            console.print(build_magi_execution_table(items, active_step=step_order))
-            if str(current.get("status", "todo")) == "done":
-                console.print(f"[bold green]Checklist step {step_order} already done from Adam workflow evidence.[/bold green]")
-                progress.advance(task)
-                continue
-            action = _prompt_checklist_action(console, current)
-            if action == "run":
-                _, action_tool = run_checklist_step(
-                    console,
-                    connection,
-                    checklist_step=step_order,
-                    target=target,
-                    detected_tools=detected_tools,
-                    scan_dir=config.scan_dir,
-                    profile="service_scan",
-                )
-                updated = get_checklist_item(connection, step_order) or {}
-                if str(updated.get("status", "todo")) not in {"done"}:
-                    mark_checklist_item_status(connection, step_order, "todo")
-                if action_tool is None and not item.get("action_tool"):
-                    mark_checklist_item_status(connection, step_order, "done")
-                    console.print(f"[bold cyan]Checklist step {step_order} completed.[/bold cyan]")
-            elif action == "done":
-                mark_checklist_item_status(connection, step_order, "done")
-                console.print(f"[bold cyan]Checklist step {step_order} marked done.[/bold cyan]")
-            elif action == "skip":
-                mark_checklist_item_status(connection, step_order, "todo")
-                console.print(f"[bold yellow]Checklist step {step_order} left as todo.[/bold yellow]")
-            progress.advance(task)
-
-    summary = checklist_summary(connection)
-    console.print(
-        f"[bold orange3]MAGI status:[/bold orange3] "
-        f"{summary.get('complete_count', 0)}/{summary.get('item_count', 0)} done"
-    )
-    return int(summary.get("complete_count", 0) or 0) == int(summary.get("item_count", 0) or 0)
-
-
-def _prompt_checklist_action(console: Console, item: dict[str, object]) -> str:
-    default_choice = "run"
-    prompt = "Run now?"
-    choices = ["run", "skip", "done"]
-    if not sys.stdin.isatty():
-        return default_choice
-    console.print(
-        f"[bold red]MELCHIOR[/bold red] recommends: [bold]{item.get('title', '')}[/bold]\n"
-        f"[bold orange3]Command:[/bold orange3] {item.get('example_command', '-')}"
-    )
-    return Prompt.ask(
-        f"[bold cyan]{prompt}[/bold cyan]",
-        choices=choices,
-        default=default_choice,
-        show_choices=True,
-    )
 
 
 def _offer_open_results(

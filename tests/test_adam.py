@@ -45,7 +45,7 @@ def test_run_adam_continues_without_obsidian_and_runs_autoresearch(tmp_path, mon
     monkeypatch.setattr(adam_module, "run_review", lambda *args, **kwargs: None)
     monkeypatch.setattr(adam_module, "resolve_vault_path", lambda *args, **kwargs: None)
     monkeypatch.setattr(adam_module, "_seed_adam_completed_steps", lambda *args, **kwargs: None)
-    monkeypatch.setattr(adam_module, "_run_magi_checklist", lambda *args, **kwargs: True)
+    monkeypatch.setattr(adam_module, "run_magi_checklist", lambda *args, **kwargs: True)
     monkeypatch.setattr(adam_module, "build_daily_report_dir", lambda *args, **kwargs: tmp_path / "reports")
     monkeypatch.setattr(
         adam_module,

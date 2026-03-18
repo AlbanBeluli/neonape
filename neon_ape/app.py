@@ -9,6 +9,7 @@ from rich.rule import Rule
 
 from neon_ape.agents.adam import run_adam
 from neon_ape.agents.autoresearch import run_autoresearch
+from neon_ape.agents.magi import run_magi_checklist
 from neon_ape.manuals.main_man import render_manual
 from neon_ape.commands.notes import run_add_note, run_notes_listing, run_view_note
 from neon_ape.commands.config import run_config_command
@@ -87,6 +88,7 @@ class NeonApeApp:
         self.obsidian_dry_run = False
         self.obsidian_skip_run = False
         self.target: str | None = None
+        self.checklist_auto = False
         self.profile = "service_scan"
         self.run_nmap = False
         self.init_only = False
@@ -191,6 +193,27 @@ class NeonApeApp:
                 pdf_enabled=self.adam_pdf,
                 autoresearch_enabled=self.adam_autoresearch,
                 autoresearch_target=self.adam_autoresearch_target,
+            )
+            if not success:
+                raise SystemExit(1)
+            return
+
+        if self.command == "checklist":
+            self.config.ensure_directories()
+            self.logger = configure_logger(self.config.log_path)
+            connection = connect(self.config.db_path)
+            initialize_database(connection, self.config.schema_path)
+            seed_checklist_from_file(connection, self.config.checklist_path)
+            detected_tools = detect_installed_tools()
+            success = run_magi_checklist(
+                self.console,
+                connection,
+                config=self.config,
+                detected_tools=detected_tools,
+                target=str(self.target),
+                auto=self.checklist_auto,
+                prompt_manual=True,
+                silent_completed=False,
             )
             if not success:
                 raise SystemExit(1)

@@ -41,6 +41,7 @@ def build_parser() -> argparse.ArgumentParser:
             "  neonape --workflow pd_web_chain --target example.com\n"
             "  neonape --workflow light_recon --target example.com\n"
             "  neonape --workflow deep_recon --target example.com\n"
+            "  neonape checklist --target example.com --auto\n"
             "  neonape --show-checklist --init-only\n\n"
             "Review:\n"
             "  neonape review --target example.com --web-paths\n"
@@ -112,6 +113,9 @@ def build_parser() -> argparse.ArgumentParser:
     obsidian_parser.add_argument("--open", action="store_true", help="Try to open the synced target note in Obsidian.")
     obsidian_parser.add_argument("--dry-run", action="store_true", help="Preview generated paths and content without writing.")
     obsidian_parser.add_argument("--skip-run", action="store_true", help="Skip running a new workflow and only export local data.")
+    checklist_parser = subparsers.add_parser("checklist", help="Run the full MAGI checklist against a target.")
+    checklist_parser.add_argument("--target", required=True, help="Domain, host, or scoped target string.")
+    checklist_parser.add_argument("--auto", action="store_true", help="Automatically run tool-backed steps and only confirm true manual steps.")
 
     review_parser = subparsers.add_parser("review", help="Show normalized service inventory and local review matches for a target.")
     review_parser.add_argument("--target", required=True, help="Domain, host, or target string to review.")
@@ -283,6 +287,7 @@ def main() -> int:
     app.obsidian_open = getattr(args, "open", False) if args.command == "obsidian" else False
     app.obsidian_dry_run = getattr(args, "dry_run", False) if args.command == "obsidian" else False
     app.obsidian_skip_run = getattr(args, "skip_run", False) if args.command == "obsidian" else False
+    app.checklist_auto = getattr(args, "auto", False) if args.command == "checklist" else False
     app.adam_target = getattr(args, "target", None) if args.command == "adam" else None
     app.adam_pdf = getattr(args, "pdf", False) if args.command == "adam" else False
     app.adam_autoresearch = getattr(args, "autoresearch", False) if args.command == "adam" else False

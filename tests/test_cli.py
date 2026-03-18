@@ -58,6 +58,14 @@ def test_parse_status_subcommand() -> None:
     assert args.command == "status"
 
 
+def test_parse_checklist_auto_subcommand() -> None:
+    parser = build_parser()
+    args = parser.parse_args(["checklist", "--target", "example.com", "--auto"])
+    assert args.command == "checklist"
+    assert args.target == "example.com"
+    assert args.auto is True
+
+
 def test_parse_tool_command_flags() -> None:
     parser = build_parser()
     args = parser.parse_args(["--tool", "httpx", "--target", "https://example.com"])
