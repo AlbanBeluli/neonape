@@ -5,6 +5,7 @@ from pathlib import Path
 from urllib.parse import urlparse
 
 from neon_ape.tools.base import ToolResult, run_command
+from neon_ape.tools.nuclei_helper import download_templates, nuclei_templates_path
 from neon_ape.tools.web_paths import enrich_web_path_findings
 from neon_ape.services.validation import validate_domain, validate_target, validate_url_or_target
 
@@ -106,6 +107,11 @@ def build_projectdiscovery_batch_command(
 def execute_projectdiscovery(command: list[str], tool_name: str, target: str, output_path: Path) -> ToolResult:
     cleanup_path = output_path.with_suffix(".input.txt") if tool_name in {"dnsx", "httpx", "naabu", "nuclei", "katana"} else None
     try:
+        if tool_name == "nuclei":
+            _, message, ready = download_templates()
+            print(message)
+            if not ready:
+                print("Continuing with whatever nuclei templates are currently available.")
         result = run_command(tool_name, target, command, timeout=_timeout_for(tool_name), raw_output_path=str(output_path))
         if tool_name in {"assetfinder", "amass"} and result.stdout:
             output_path.write_text(result.stdout, encoding="utf-8")
@@ -286,7 +292,14 @@ def _naabu_base_command() -> list[str]:
 
 
 def _nuclei_base_command() -> list[str]:
-    return ["nuclei", "-jsonl", "-severity", "info,low,medium,high,critical"]
+    return [
+        "nuclei",
+        "-jsonl",
+        "-severity",
+        "info,low,medium,high,critical",
+        "-t",
+        str(nuclei_templates_path()),
+    ]
 
 
 def _validate_batch_target(tool_name: str, target: str) -> str:

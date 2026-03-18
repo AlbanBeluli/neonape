@@ -24,6 +24,7 @@ from neon_ape.db.repository import mark_checklist_item_status, record_scan, revi
 from neon_ape.obsidian_sync import resolve_vault_path, run_sync as run_obsidian_sync, sanitize_target_name
 from neon_ape.reports.pdf_generator import generate_pdf_report
 from neon_ape.tools.base import ToolResult, run_command
+from neon_ape.tools.nuclei_helper import download_templates, nuclei_templates_path
 from neon_ape.tools.projectdiscovery import parse_projectdiscovery_output
 from neon_ape.ui.layout import build_adam_completion_panel, build_adam_intro_panel
 from neon_ape.workflows.orchestrator import build_daily_report_dir, copy_daily_reports, is_macos, open_in_finder, speak_completion
@@ -353,6 +354,18 @@ def _run_adam_nuclei_review(
         f"[bold orange3]Adam is constraining nuclei for live orchestration:[/bold orange3] "
         f"{', '.join(normalized_targets)}"
     )
+    templates_path, templates_message, templates_ready = download_templates()
+    console.print(f"[bold cyan]{templates_message}[/bold cyan]")
+    if not templates_ready:
+        console.print(
+            f"[bold yellow]Continuing with available nuclei templates from:[/bold yellow] {templates_path}"
+        )
+    command = [
+        *command[:4],
+        "-t",
+        str(nuclei_templates_path()),
+        *command[4:],
+    ]
     try:
         result = run_command(
             "nuclei",

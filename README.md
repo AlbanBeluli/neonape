@@ -59,6 +59,8 @@ neonape status
 neonape man
 ```
 
+`neonape setup tools --yes` also ensures the managed ffuf wordlist and nuclei templates are ready for first-run scans.
+
 Install from GitHub:
 
 ```bash
@@ -87,7 +89,7 @@ If your shell has not picked up `~/.local/bin` yet, run:
 
 You wanted a simple checklist-driven life as a pen-tester, Neon Genesis Evangelion aesthetics, self-improving tools, and zero external exposure. Neon Ape delivers exactly that — and now it literally gets smarter every night.
 
-**Version:** 0.9.5 (Production)  
+**Version:** 0.9.6 (Production)  
 **Theme:** Neon Genesis Evangelion  
 **License:** MIT  
 Made with love for the operators who want to feel like they’re piloting Unit-01 while doing recon.
@@ -131,6 +133,7 @@ $ neonape db scans --limit 3
 - `nmap` integration with XML parsing
 - ProjectDiscovery wrappers for `subfinder`, `assetfinder`, `amass`, `httpx`, `naabu`, `dnsx`, `katana`, and `nuclei`
 - Safe web enumeration wrapper for `ffuf` by default, with automatic Gobuster fallback
+- Managed nuclei template bootstrap with automatic pre-run checks and safe fallback if template download is unavailable
 - Chained workflows: `pd_chain`, `pd_web_chain`, `light_recon`, `deep_recon`, and `js_web_chain`
 - Welcome panel, missing-tool guidance, and severity-colored review tables
 - Encrypted notes and local scan history

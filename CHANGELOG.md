@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.9.6] - 2026-03-18
+
+- Added managed nuclei template bootstrapping through `neon_ape.tools.nuclei_helper`.
+- `neonape setup tools --yes` now ensures nuclei templates are present alongside the ffuf wordlist.
+- Adam and the default nuclei wrapper now auto-check templates before each nuclei run.
+- Hardened template detection to require real YAML templates and switched template seeding to copy-based sync for reliability.
+- Nuclei now continues safely even if template download is unavailable.
+
 ## [0.9.5] - 2026-03-18
 
 - Made ffuf wordlist handling deterministic by always using `~/.neonape/wordlists/common.txt`.
