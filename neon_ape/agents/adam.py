@@ -21,6 +21,7 @@ from neon_ape.commands.tools import (
 )
 from neon_ape.db.repository import checklist_summary, get_checklist_item, list_checklist_items, mark_checklist_item_status, record_scan, review_overview
 from neon_ape.obsidian_sync import resolve_vault_path, run_sync as run_obsidian_sync, sanitize_target_name
+from neon_ape.reports.pdf_generator import generate_pdf_report
 from neon_ape.tools.base import ToolResult, run_command
 from neon_ape.tools.projectdiscovery import parse_projectdiscovery_output
 from neon_ape.ui.layout import build_adam_completion_panel, build_adam_intro_panel, build_magi_execution_table
@@ -37,6 +38,7 @@ def run_adam(
     config,
     detected_tools: dict[str, str],
     target: str | None = None,
+    pdf_enabled: bool = False,
     autoresearch_enabled: bool = False,
     autoresearch_target: str | None = None,
 ) -> bool:
@@ -175,6 +177,26 @@ def run_adam(
         review_summary_path = target_dir / "Review-Summary.md"
         daily_report_dir = copy_daily_reports(active_target, [findings_path, sensitive_paths_path, review_summary_path])
 
+    pdf_path: Path | None = None
+    if pdf_enabled:
+        pdf_path = daily_report_dir / f"{sanitize_target_name(active_target)}-adam-report.pdf"
+        pdf_sections = [
+            ("Findings", _read_report_section(findings_path)),
+            ("Sensitive Paths", _read_report_section(sensitive_paths_path)),
+            ("Review Summary", _read_report_section(review_summary_path)),
+        ]
+        generate_pdf_report(
+            pdf_path,
+            title="Neon Ape Adam Report",
+            subtitle=f"Target: {active_target}",
+            summary_rows=(
+                ("Target", active_target),
+                ("Highest Risk", str(highest_risk)),
+                ("Daily Folder", str(daily_report_dir)),
+            ),
+            sections=pdf_sections,
+        )
+
     _seed_adam_completed_steps(connection)
     console.print("[bold orange3]Loading MAGI checklist sequence...[/bold orange3]")
     checklist_success = _run_magi_checklist(
@@ -211,6 +233,8 @@ def run_adam(
         )
     )
     console.print(f"[bold cyan]Daily report folder:[/bold cyan] {daily_report_dir}")
+    if pdf_path is not None:
+        console.print(f"[bold cyan]PDF report:[/bold cyan] {pdf_path}")
     _offer_open_results(console, findings_path, sensitive_paths_path, review_summary_path, daily_report_dir)
     return True
 
@@ -223,6 +247,12 @@ def _write_report_placeholder(path: Path, title: str, target: str, highest_risk:
         "- Obsidian export was unavailable, so Adam wrote this local fallback artifact.\n",
         encoding="utf-8",
     )
+
+
+def _read_report_section(path: Path) -> str:
+    if not path.exists():
+        return "Not available."
+    return path.read_text(encoding="utf-8")[:4000]
 
 
 def _seed_adam_completed_steps(connection) -> None:

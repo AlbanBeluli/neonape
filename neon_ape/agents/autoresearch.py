@@ -17,16 +17,18 @@ from rich.prompt import Prompt
 from rich.table import Table
 
 from neon_ape.evaluation.harness import built_in_targets, evaluate_skill_objectively, render_sparkline
+from neon_ape.reports.pdf_generator import generate_pdf_report
 from neon_ape.services.llm_triage import cline_available, ollama_available
 from neon_ape.skills.manager import (
     describe_skill_structure,
     diff_skill,
     initialize_skill_state,
     load_current_skill,
+    record_skill_run,
     save_improved_skill,
     update_skill_defaults,
 )
-from neon_ape.workflows.orchestrator import is_macos, speak_autoresearch_completion
+from neon_ape.workflows.orchestrator import build_daily_report_dir, is_macos, speak_autoresearch_completion
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
@@ -218,6 +220,7 @@ def run_autoresearch(
     dry_run: bool = False,
     silent_voice: bool = False,
     test_targets: list[str] | None = None,
+    pdf_enabled: bool = False,
 ) -> bool:
     profile = _resolve_skill_profile(skill_target, console)
     if profile is None:
@@ -372,6 +375,9 @@ def run_autoresearch(
     elif dry_run:
         diff_text = "Dry run mode: no persistent skill update was written."
 
+    if not dry_run:
+        record_skill_run(profile.name, score=best_score)
+
     if not silent_voice and not no_voice:
         spoken_lines = speak_autoresearch_completion(baseline_score, best_score, persisted=improvement > 2.0)
         if is_macos():
@@ -380,6 +386,36 @@ def run_autoresearch(
                 console.print(f"- {line}")
     if headless:
         _send_headless_notification(profile.name, best_score, improvement, console)
+
+    pdf_path: Path | None = None
+    if pdf_enabled:
+        report_dir = daily_report_dir or build_daily_report_dir(profile.name)
+        report_dir.mkdir(parents=True, exist_ok=True)
+        pdf_path = report_dir / f"{profile.name}-autoresearch.pdf"
+        oracle_lines = []
+        for key, value in sorted((best_objective_report.get("oracle_scores") or {}).items()):
+            reason = str((best_objective_report.get("oracle_reasons") or {}).get(key, "-"))
+            oracle_lines.append(f"- {key.replace('_', ' ')}: {value}% | {reason}")
+        changes = [f"- kept iteration {item['iteration']}: {item['change']}" for item in kept_changes[:6]] or ["- No changes kept"]
+        generate_pdf_report(
+            pdf_path,
+            title="Neon Ape Autoresearch Report",
+            subtitle=f"Skill: {profile.label}",
+            summary_rows=(
+                ("Skill", profile.name),
+                ("Baseline Objective", f"{baseline_score}%"),
+                ("Best Objective", f"{best_score}%"),
+                ("Export Detected", "YES" if best_objective_report.get("export_detected") else "NO"),
+            ),
+            sections=(
+                ("Findings", "\n".join(changes)),
+                ("Sensitive Paths", str((best_objective_report.get("oracle_reasons") or {}).get("sensitive_path_detection", "-"))),
+                ("Oracles Summary", "\n".join(oracle_lines)),
+                ("Score Summary", f"Objective delta: {improvement}%\nSubjective best: {best_subjective}%"),
+            ),
+            objective_history=objective_history,
+            subjective_history=subjective_history,
+        )
 
     diff_panel = Panel.fit(
         diff_text if len(diff_text) < 3000 else diff_text[:3000] + "\n...",
@@ -397,6 +433,7 @@ def run_autoresearch(
             f"[bold]Improved subjective:[/bold] {best_subjective}%\n"
             f"[bold]Improvement delta:[/bold] {improvement}%\n"
             f"[bold]Export detected:[/bold] {'YES' if best_objective_report.get('export_detected') else 'NO'}\n"
+            f"[bold]PDF:[/bold] {pdf_path if pdf_path else 'Not requested'}\n"
             f"[bold]Current skill:[/bold] {describe_skill_structure(profile.name)[1]}\n"
             f"[bold]Backup:[/bold] {backup_file if backup_file else 'Not written'}\n"
             f"[bold]Changelog:[/bold] {describe_skill_structure(profile.name)[2]}\n"

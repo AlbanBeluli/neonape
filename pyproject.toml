@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "neonape"
-version = "0.7.0"
+version = "0.9.0"
 description = "Local-only terminal dashboard for lab-safe reconnaissance workflows"
 readme = "README.md"
 requires-python = ">=3.11"
@@ -16,6 +16,7 @@ dependencies = [
   "pydantic>=2.10,<3.0",
   "lxml>=5.3,<6.0",
   "PyYAML>=6.0,<7.0",
+  "reportlab>=4.0,<5.0",
 ]
 
 [project.scripts]

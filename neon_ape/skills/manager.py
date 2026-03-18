@@ -5,6 +5,7 @@ from difflib import unified_diff
 import json
 import os
 from pathlib import Path
+from datetime import datetime as dt
 from typing import Any
 
 
@@ -168,6 +169,7 @@ def list_skills(*, root: Path | None = None) -> list[dict[str, Any]]:
                 "label": payload.get("label", folder.name),
                 "score": payload.get("score"),
                 "last_improved": payload.get("activated_at", "-"),
+                "last_run": payload.get("last_run_at") or dt.fromtimestamp(current.stat().st_mtime, tz=UTC).strftime("%Y-%m-%d %H:%M:%S"),
                 "source_path": payload.get("source_path", "-"),
             }
         )
@@ -248,6 +250,21 @@ def update_skill_defaults(
     return current
 
 
+def record_skill_run(
+    skill_name: str,
+    *,
+    score: float,
+    root: Path | None = None,
+) -> dict[str, Any]:
+    current = load_current_skill(skill_name, root=root)
+    if current is None:
+        raise ValueError(f"Skill not found: {skill_name}")
+    current["score"] = score
+    current["last_run_at"] = _timestamp()
+    _write_current(skill_name, current, root=root)
+    return current
+
+
 def _build_state(
     *,
     skill_name: str,
@@ -272,6 +289,7 @@ def _build_state(
         "score": score,
         "improvement": improvement,
         "activated_at": activated_at,
+        "last_run_at": activated_at,
         "questions": questions or [],
         "scenarios": scenarios or [],
         "default_questions": default_questions or [],

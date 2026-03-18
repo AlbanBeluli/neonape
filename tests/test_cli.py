@@ -44,6 +44,12 @@ def test_parse_setup_notifications_subcommand() -> None:
     assert args.yes is True
 
 
+def test_parse_status_subcommand() -> None:
+    parser = build_parser()
+    args = parser.parse_args(["status"])
+    assert args.command == "status"
+
+
 def test_parse_tool_command_flags() -> None:
     parser = build_parser()
     args = parser.parse_args(["--tool", "httpx", "--target", "https://example.com"])
@@ -166,9 +172,10 @@ def test_parse_review_web_paths_command() -> None:
 
 def test_parse_adam_command() -> None:
     parser = build_parser()
-    args = parser.parse_args(["adam", "--target", "example.com"])
+    args = parser.parse_args(["adam", "--target", "example.com", "--pdf"])
     assert args.command == "adam"
     assert args.target == "example.com"
+    assert args.pdf is True
 
 
 def test_parse_adam_autoresearch_command() -> None:
@@ -194,6 +201,7 @@ def test_parse_autoresearch_command() -> None:
             "4",
             "--baseline-runs",
             "8",
+            "--pdf",
             "--overnight",
         ]
     )
@@ -203,6 +211,7 @@ def test_parse_autoresearch_command() -> None:
     assert args.scenario == ["A new operator must continue quickly."]
     assert args.iterations == 4
     assert args.baseline_runs == 8
+    assert args.pdf is True
     assert args.overnight is True
 
 

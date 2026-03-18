@@ -15,6 +15,8 @@ def build_parser() -> argparse.ArgumentParser:
         epilog=(
             "Recommended:\n"
             "  neonape adam --target example.com\n\n"
+            "Status:\n"
+            "  neonape status\n\n"
             "Manuals:\n"
             "  neonape man\n"
             "  neonape man adam\n"
@@ -22,9 +24,11 @@ def build_parser() -> argparse.ArgumentParser:
             "Adam:\n"
             "  neonape adam\n"
             "  neonape adam --target example.com\n"
+            "  neonape adam --target example.com --pdf\n"
             "  neonape adam --autoresearch --target example.com\n\n"
             "Autoresearch:\n"
             "  neonape autoresearch --target magi-checklist --auto\n"
+            "  neonape autoresearch --target angel-eyes --auto --test-target stoic.ee --pdf\n"
             "  neonape autoresearch --target angel-eyes --headless --rounds 100\n\n"
             "Skills:\n"
             "  neonape skill list\n"
@@ -52,6 +56,7 @@ def build_parser() -> argparse.ArgumentParser:
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     subparsers = parser.add_subparsers(dest="command")
+    subparsers.add_parser("status", help="Show persistent skill health and overall Neon Ape status.")
     man_parser = subparsers.add_parser("man", help="Open the Neon Ape operator manual.")
     man_subparsers = man_parser.add_subparsers(dest="man_topic")
     man_subparsers.add_parser("adam", help="Open the dedicated Adam manual.")
@@ -71,6 +76,7 @@ def build_parser() -> argparse.ArgumentParser:
     config_set.add_argument("value", help="New value for the config key.")
     adam_parser = subparsers.add_parser("adam", help="Run Adam, the autonomous web review orchestrator.")
     adam_parser.add_argument("--target", help="Seed domain for Adam. If omitted, Neon Ape prompts for a domain.")
+    adam_parser.add_argument("--pdf", action="store_true", help="Generate a PDF report in the daily report folder when Adam completes.")
     adam_parser.add_argument("--autoresearch", action="store_true", help="Run autoresearch against MAGI Checklist or Angel Eyes after Adam finishes recon.")
     adam_parser.add_argument("--autoresearch-target", choices=("magi-checklist", "angel-eyes", "nmap-wrappers", "ui-panels", "prompt-templates", "triage-prompt", "adam-workflow"), help="Optional explicit skill for Adam's autoresearch phase.")
     autoresearch_parser = subparsers.add_parser("autoresearch", help="Run the local autoresearch loop against a Neon Ape skill.")
@@ -81,6 +87,7 @@ def build_parser() -> argparse.ArgumentParser:
     autoresearch_parser.add_argument("--rounds", type=int, help="Alias for --iterations.")
     autoresearch_parser.add_argument("--baseline-runs", type=int, default=8, help="How many scoring runs to average for baseline and candidates.")
     autoresearch_parser.add_argument("--test-target", action="append", default=[], help="Optional safe test target label for the objective harness. Can be repeated.")
+    autoresearch_parser.add_argument("--pdf", action="store_true", help="Generate a PDF report in the daily report folder when autoresearch completes.")
     autoresearch_parser.add_argument("--auto", action="store_true", help="Use stored default questions and scenarios with no interactive prompts.")
     autoresearch_parser.add_argument("--headless", action="store_true", help="Enable auto mode, suppress voice, and send a terminal-notifier message on macOS.")
     autoresearch_parser.add_argument("--no-voice", action="store_true", help="Suppress Daniel voice lines for this autoresearch run.")
@@ -274,6 +281,7 @@ def main() -> int:
     app.obsidian_dry_run = getattr(args, "dry_run", False) if args.command == "obsidian" else False
     app.obsidian_skip_run = getattr(args, "skip_run", False) if args.command == "obsidian" else False
     app.adam_target = getattr(args, "target", None) if args.command == "adam" else None
+    app.adam_pdf = getattr(args, "pdf", False) if args.command == "adam" else False
     app.adam_autoresearch = getattr(args, "autoresearch", False) if args.command == "adam" else False
     app.adam_autoresearch_target = getattr(args, "autoresearch_target", None) if args.command == "adam" else None
     app.autoresearch_target = getattr(args, "target", None) if args.command == "autoresearch" else None
@@ -282,6 +290,7 @@ def main() -> int:
     app.autoresearch_iterations = ((getattr(args, "rounds", None) or getattr(args, "iterations", 6)) if args.command == "autoresearch" else 6)
     app.autoresearch_baseline_runs = getattr(args, "baseline_runs", 8) if args.command == "autoresearch" else 8
     app.autoresearch_test_targets = getattr(args, "test_target", []) if args.command == "autoresearch" else []
+    app.autoresearch_pdf = getattr(args, "pdf", False) if args.command == "autoresearch" else False
     app.autoresearch_auto = getattr(args, "auto", False) if args.command == "autoresearch" else False
     app.autoresearch_headless = getattr(args, "headless", False) if args.command == "autoresearch" else False
     app.autoresearch_no_voice = getattr(args, "no_voice", False) if args.command == "autoresearch" else False

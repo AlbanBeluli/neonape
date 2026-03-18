@@ -5,6 +5,7 @@ from types import SimpleNamespace
 from rich.panel import Panel
 from rich.console import Console
 from rich.prompt import Confirm
+from rich.rule import Rule
 
 from neon_ape.agents.adam import run_adam
 from neon_ape.agents.autoresearch import run_autoresearch
@@ -94,6 +95,7 @@ class NeonApeApp:
         self.show_targets = False
         self.workflow: str | None = None
         self.adam_target: str | None = None
+        self.adam_pdf = False
         self.adam_autoresearch = False
         self.adam_autoresearch_target: str | None = None
         self.autoresearch_target: str | None = None
@@ -102,6 +104,7 @@ class NeonApeApp:
         self.autoresearch_iterations = 6
         self.autoresearch_baseline_runs = 8
         self.autoresearch_test_targets: list[str] = []
+        self.autoresearch_pdf = False
         self.autoresearch_auto = False
         self.autoresearch_headless = False
         self.autoresearch_no_voice = False
@@ -148,6 +151,10 @@ class NeonApeApp:
             )
             return
 
+        if self.command == "status":
+            self._run_status()
+            return
+
         if self.command == "obsidian":
             status = run_obsidian_sync(
                 SimpleNamespace(
@@ -178,6 +185,7 @@ class NeonApeApp:
                 config=self.config,
                 detected_tools=detected_tools,
                 target=self.adam_target,
+                pdf_enabled=self.adam_pdf,
                 autoresearch_enabled=self.adam_autoresearch,
                 autoresearch_target=self.adam_autoresearch_target,
             )
@@ -198,6 +206,7 @@ class NeonApeApp:
                 iterations=self.autoresearch_iterations,
                 baseline_runs=self.autoresearch_baseline_runs,
                 test_targets=self.autoresearch_test_targets,
+                pdf_enabled=self.autoresearch_pdf,
                 auto=self.autoresearch_auto,
                 headless=self.autoresearch_headless,
                 no_voice=self.autoresearch_no_voice,
@@ -467,3 +476,39 @@ class NeonApeApp:
             return
         error_text = completed.stderr.strip() or completed.stdout.strip() or f"brew exited with {completed.returncode}"
         self.console.print(f"[bold red]{error_text}[/bold red]")
+
+    def _run_status(self) -> None:
+        rows = list_saved_skills()
+        self.console.print(Rule("Neon Ape Status", style=section_style("accent")))
+        table = Table(title="Persistent Skill Health", expand=False)
+        table.add_column("Skill", style="bold magenta")
+        table.add_column("Objective")
+        table.add_column("Last Improved")
+        table.add_column("Last Run")
+        for row in rows:
+            table.add_row(
+                str(row.get("skill", "-")),
+                f"{row.get('score', '-')}",
+                str(row.get("last_improved", "-")),
+                str(row.get("last_run", "-")),
+            )
+        if rows:
+            self.console.print(table)
+            numeric_scores = [float(row["score"]) for row in rows if row.get("score") not in {None, "-", ""}]
+            health_score = round(sum(numeric_scores) / max(len(numeric_scores), 1), 2) if numeric_scores else 0.0
+            self.console.print(
+                Panel.fit(
+                    f"[bold]Tracked skills:[/bold] {len(rows)}\n"
+                    f"[bold]Overall Neon Ape health:[/bold] {health_score}%",
+                    title="System Health",
+                    style=section_style("accent"),
+                )
+            )
+            return
+        self.console.print(
+            Panel.fit(
+                "No persistent skills saved yet.\nRun `neonape autoresearch --target magi-checklist --auto` to seed the status view.",
+                title="System Health",
+                style=section_style("accent"),
+            )
+        )
