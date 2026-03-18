@@ -7,7 +7,7 @@
 
 One command. Full recon. Automatic MAGI Checklist. Angel Eyes review. Autoresearch that literally improves itself overnight. Beautiful PDFs. Calm voice notifications. Everything encrypted and local-only.
 
-Built for real OSCP / professional pen-testers who want a simple, elite workflow.
+Built for professional penetration testers who want a simple, elite workflow.
 
 This project does not automate brute force, exploitation, credential attacks, or post-exploitation activity.
 
@@ -17,7 +17,7 @@ This project does not automate brute force, exploitation, credential attacks, or
   `neonape adam --target example.com`  
   Asks only for the domain and runs the entire pipeline automatically (subfinder → httpx → katana → gobuster → nuclei → Angel Eyes → MAGI Checklist → PDF).
 
-- **MAGI Checklist** (OSCP Black Book Chapters 3-5 style)  
+- **MAGI Checklist**  
   Interactive step-by-step guides with nmap wrappers, Python tools, and encrypted progress tracking. Runs fully automatically from Adam.
 
 - **Angel Eyes** – Web Exposure Guardian  
