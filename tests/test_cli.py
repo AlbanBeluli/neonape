@@ -198,6 +198,29 @@ def test_parse_autoresearch_command() -> None:
     assert args.overnight is True
 
 
+def test_parse_autoresearch_rounds_alias() -> None:
+    parser = build_parser()
+    args = parser.parse_args(["autoresearch", "--target", "magi-checklist", "--rounds", "30"])
+    assert args.command == "autoresearch"
+    assert args.rounds == 30
+
+
+def test_parse_skill_commands() -> None:
+    parser = build_parser()
+    args = parser.parse_args(["skill", "list"])
+    assert args.command == "skill"
+    assert args.skill_command == "list"
+
+    args = parser.parse_args(["skill", "diff", "magi-checklist"])
+    assert args.skill_command == "diff"
+    assert args.skill_name == "magi-checklist"
+
+    args = parser.parse_args(["skill", "use", "magi-checklist", "--version", "2026-03-18"])
+    assert args.skill_command == "use"
+    assert args.skill_name == "magi-checklist"
+    assert args.version == "2026-03-18"
+
+
 def test_parse_export_command() -> None:
     parser = build_parser()
     args = parser.parse_args(["export", "scans", "--output", "scans.json", "--format", "json", "--limit", "10"])

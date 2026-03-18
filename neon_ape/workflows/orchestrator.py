@@ -45,10 +45,10 @@ def speak_completion(highest_risk: int, *, checklist_complete: bool = False) -> 
     return lines
 
 
-def speak_autoresearch_completion(start_score: float, end_score: float) -> list[str]:
-    lines = [
-        f"Autoresearch complete. Skill improved from {round(start_score, 2)} percent to {round(end_score, 2)} percent.",
-    ]
+def speak_autoresearch_completion(start_score: float, end_score: float, *, persisted: bool = False) -> list[str]:
+    lines = [f"Autoresearch complete. Skill improved from {round(start_score, 2)} percent to {round(end_score, 2)} percent."]
+    if persisted:
+        lines.append("Skill improved and saved permanently. New version active.")
     if not is_macos():
         return lines
     for line in lines:

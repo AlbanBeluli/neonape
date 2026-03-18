@@ -26,6 +26,10 @@ def build_parser() -> argparse.ArgumentParser:
             "Autoresearch:\n"
             "  neonape autoresearch --target magi-checklist\n"
             "  neonape autoresearch --target angel-eyes --overnight\n\n"
+            "Skills:\n"
+            "  neonape skill list\n"
+            "  neonape skill diff magi-checklist\n"
+            "  neonape skill use magi-checklist --version 2026-03-18\n\n"
             "Workflows:\n"
             "  neonape --workflow pd_web_chain --target example.com\n"
             "  neonape --workflow light_recon --target example.com\n"
@@ -62,14 +66,23 @@ def build_parser() -> argparse.ArgumentParser:
     adam_parser = subparsers.add_parser("adam", help="Run Adam, the autonomous web review orchestrator.")
     adam_parser.add_argument("--target", help="Seed domain for Adam. If omitted, Neon Ape prompts for a domain.")
     adam_parser.add_argument("--autoresearch", action="store_true", help="Run autoresearch against MAGI Checklist or Angel Eyes after Adam finishes recon.")
-    adam_parser.add_argument("--autoresearch-target", choices=("magi-checklist", "angel-eyes", "nmap-wrappers", "ui-panels", "prompt-templates", "adam-workflow"), help="Optional explicit skill for Adam's autoresearch phase.")
+    adam_parser.add_argument("--autoresearch-target", choices=("magi-checklist", "angel-eyes", "nmap-wrappers", "ui-panels", "prompt-templates", "triage-prompt", "adam-workflow"), help="Optional explicit skill for Adam's autoresearch phase.")
     autoresearch_parser = subparsers.add_parser("autoresearch", help="Run the local autoresearch loop against a Neon Ape skill.")
-    autoresearch_parser.add_argument("--target", choices=("magi-checklist", "angel-eyes", "nmap-wrappers", "ui-panels", "prompt-templates", "adam-workflow"), help="Skill target to improve.")
+    autoresearch_parser.add_argument("--target", choices=("magi-checklist", "angel-eyes", "nmap-wrappers", "ui-panels", "prompt-templates", "triage-prompt", "adam-workflow"), help="Skill target to improve.")
     autoresearch_parser.add_argument("--question", action="append", default=[], help="Yes/no research question. Can be repeated up to six times.")
     autoresearch_parser.add_argument("--scenario", action="append", default=[], help="Test scenario. Can be repeated up to five times.")
     autoresearch_parser.add_argument("--iterations", type=int, default=6, help="Number of tiny-change iterations to evaluate.")
+    autoresearch_parser.add_argument("--rounds", type=int, help="Alias for --iterations.")
     autoresearch_parser.add_argument("--baseline-runs", type=int, default=8, help="How many scoring runs to average for baseline and candidates.")
     autoresearch_parser.add_argument("--overnight", action="store_true", help="Label the run as an overnight autonomous session in the dashboard and changelog.")
+    skill_parser = subparsers.add_parser("skill", help="Inspect or switch persistent Neon Ape skill versions.")
+    skill_subparsers = skill_parser.add_subparsers(dest="skill_command", required=True)
+    skill_subparsers.add_parser("list", help="List saved skills and their active versions.")
+    skill_diff = skill_subparsers.add_parser("diff", help="Show the current diff against the previous saved version.")
+    skill_diff.add_argument("skill_name", help="Skill name to diff.")
+    skill_use = skill_subparsers.add_parser("use", help="Switch the active version to a saved history snapshot.")
+    skill_use.add_argument("skill_name", help="Skill name to activate.")
+    skill_use.add_argument("--version", required=True, help="History version prefix such as 2026-03-18.")
     obsidian_parser = subparsers.add_parser("obsidian", help="Sync Neon Ape data into an Obsidian vault.")
     obsidian_parser.add_argument("--vault-path", help="Absolute path to the vault root. Falls back to config or current vault.")
     obsidian_parser.add_argument("--target-note", required=True, help="Path to the source Markdown note relative to the vault.")
@@ -253,9 +266,12 @@ def main() -> int:
     app.autoresearch_target = getattr(args, "target", None) if args.command == "autoresearch" else None
     app.autoresearch_questions = getattr(args, "question", []) if args.command == "autoresearch" else []
     app.autoresearch_scenarios = getattr(args, "scenario", []) if args.command == "autoresearch" else []
-    app.autoresearch_iterations = getattr(args, "iterations", 6) if args.command == "autoresearch" else 6
+    app.autoresearch_iterations = ((getattr(args, "rounds", None) or getattr(args, "iterations", 6)) if args.command == "autoresearch" else 6)
     app.autoresearch_baseline_runs = getattr(args, "baseline_runs", 8) if args.command == "autoresearch" else 8
     app.autoresearch_overnight = getattr(args, "overnight", False) if args.command == "autoresearch" else False
+    app.skill_command = getattr(args, "skill_command", None) if args.command == "skill" else None
+    app.skill_name = getattr(args, "skill_name", None) if args.command == "skill" else None
+    app.skill_version = getattr(args, "version", None) if args.command == "skill" else None
     app.target = args.target
     app.profile = args.profile
     app.run_nmap = args.run_nmap

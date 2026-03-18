@@ -28,8 +28,11 @@ def _config(tmp_path: Path) -> AppConfig:
 def test_autoresearch_generates_daily_artifacts(tmp_path, monkeypatch) -> None:
     console = Console(record=True)
     config = _config(tmp_path)
-    output_dir = tmp_path / "reports"
+    skills_dir = tmp_path / "skills"
+    monkeypatch.setenv("NEONAPE_SKILLS_DIR", str(skills_dir))
     monkeypatch.setattr("neon_ape.agents.autoresearch.is_macos", lambda: False)
+    sample_sets = iter(([50.0, 50.0], [53.5, 53.5], [53.5, 53.5]))
+    monkeypatch.setattr("neon_ape.agents.autoresearch._score_samples", lambda *args, **kwargs: next(sample_sets))
 
     success = run_autoresearch(
         console,
@@ -39,18 +42,20 @@ def test_autoresearch_generates_daily_artifacts(tmp_path, monkeypatch) -> None:
         scenarios=["A new operator must continue from MAGI quickly."],
         iterations=2,
         baseline_runs=2,
-        daily_report_dir=output_dir,
         silent_voice=True,
     )
 
     assert success is True
-    assert (output_dir / "magi-checklist.backup.json").exists()
-    assert (output_dir / "magi-checklist.improved.json").exists()
-    assert (output_dir / "autoresearch-changelog.md").exists()
-    assert (output_dir / "autoresearch-summary.json").exists()
+    skill_root = skills_dir / "magi-checklist"
+    assert (skill_root / "current.json").exists()
+    assert (skill_root / "changelog.md").exists()
+    assert (skill_root / "history").exists()
+    output = console.export_text()
+    assert "Skill improved and saved permanently. New version active." in output
 
 
 def test_autoresearch_supported_skill_registry_contains_expected_targets() -> None:
     assert "magi-checklist" in SKILL_REGISTRY
     assert "angel-eyes" in SKILL_REGISTRY
     assert "adam-workflow" in SKILL_REGISTRY
+    assert "triage-prompt" in SKILL_REGISTRY

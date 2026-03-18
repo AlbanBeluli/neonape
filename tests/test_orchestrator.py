@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from neon_ape.workflows.orchestrator import build_daily_report_dir, copy_daily_reports
+from neon_ape.workflows.orchestrator import build_daily_report_dir, copy_daily_reports, speak_autoresearch_completion
 
 
 def test_build_daily_report_dir_uses_target_slug(tmp_path, monkeypatch) -> None:
@@ -22,3 +22,9 @@ def test_copy_daily_reports_copies_existing_files(tmp_path) -> None:
 
     assert (destination / "Findings.md").read_text(encoding="utf-8") == "findings"
     assert (destination / "Review-Summary.md").read_text(encoding="utf-8") == "review"
+
+
+def test_speak_autoresearch_completion_includes_persist_notice() -> None:
+    lines = speak_autoresearch_completion(51.2, 56.8, persisted=True)
+    assert "Autoresearch complete." in lines[0]
+    assert "Skill improved and saved permanently. New version active." in lines[1]

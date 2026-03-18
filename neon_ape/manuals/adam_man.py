@@ -99,7 +99,8 @@ def _adam_autoresearch() -> Group:
         table,
         Panel.fit(
             "Autoresearch runs a bounded local loop: baseline scoring, one tiny change at a time, eight scoring passes per candidate, and keep-only-if-better behavior.\n\n"
-            "Artifacts land in the daily report folder with a backup, improved snapshot, JSON summary, and markdown changelog.",
+            "Persistent skills live under `~/.neonape/skills/<skill>/` with `current.json`, `history/`, and `changelog.md`.\n\n"
+            "Use `neonape skill list`, `neonape skill diff <skill>`, and `neonape skill use <skill> --version <timestamp>` to inspect or roll back versions.",
             border_style="orange3",
         ),
     )

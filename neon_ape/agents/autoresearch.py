@@ -14,7 +14,13 @@ from rich.panel import Panel
 from rich.prompt import Prompt
 from rich.table import Table
 
-from neon_ape.workflows.orchestrator import build_daily_report_dir, is_macos, speak_autoresearch_completion
+from neon_ape.skills.manager import (
+    describe_skill_structure,
+    diff_skill,
+    initialize_skill_state,
+    save_improved_skill,
+)
+from neon_ape.workflows.orchestrator import is_macos, speak_autoresearch_completion
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
@@ -138,6 +144,27 @@ SKILL_REGISTRY: dict[str, SkillProfile] = {
         ),
         keyword_bank=("prompt", "triage", "review", "defensive", "remediation", "evidence"),
     ),
+    "triage-prompt": SkillProfile(
+        name="triage-prompt",
+        label="Triage Prompt",
+        source_path=REPO_ROOT / "neon_ape" / "services" / "llm_triage.py",
+        default_questions=(
+            "Do the prompts stay defensive and avoid offensive drift?",
+            "Do they produce concise review output instead of generic prose?",
+            "Do they preserve evidence and remediation focus?",
+        ),
+        default_scenarios=(
+            "Angel Eyes finds a blocked .env and .git directory on a target.",
+            "A service inventory contains an outdated Apache version that needs review wording.",
+            "The operator needs a triage summary that fits cleanly into Obsidian.",
+        ),
+        mutation_bank=(
+            "Require concise defensive phrasing and forbid speculative attack wording.",
+            "Bias output toward evidence, manual validation, remediation, and data gaps.",
+            "Make every section accountable to the observed findings instead of generic advice.",
+        ),
+        keyword_bank=("prompt", "triage", "review", "defensive", "remediation", "evidence"),
+    ),
     "adam-workflow": SkillProfile(
         name="adam-workflow",
         label="Adam Workflow",
@@ -182,9 +209,17 @@ def run_autoresearch(
     active_questions = _collect_questions(console, profile, questions or [])
     active_scenarios = _collect_scenarios(console, profile, scenarios or [])
     original_text = profile.source_path.read_text(encoding="utf-8")
-    baseline_samples = _score_samples(profile, original_text, active_questions, active_scenarios, runs=baseline_runs)
+    persisted = initialize_skill_state(
+        skill_name=profile.name,
+        label=profile.label,
+        source_path=profile.source_path,
+        content=original_text,
+        score=None,
+    )
+    baseline_text = str(persisted.get("content", original_text))
+    baseline_samples = _score_samples(profile, baseline_text, active_questions, active_scenarios, runs=baseline_runs)
     baseline_score = round(mean(baseline_samples), 2)
-    best_text = original_text
+    best_text = baseline_text
     best_score = baseline_score
     kept_changes: list[dict[str, object]] = []
     discarded_changes: list[dict[str, object]] = []
@@ -223,53 +258,50 @@ def run_autoresearch(
                 )
             )
 
-    destination = daily_report_dir or build_daily_report_dir(f"autoresearch-{profile.name}")
-    destination.mkdir(parents=True, exist_ok=True)
-    backup_path = destination / f"{profile.name}.backup{profile.source_path.suffix or '.txt'}"
-    improved_path = destination / f"{profile.name}.improved{profile.source_path.suffix or '.txt'}"
-    changelog_path = destination / "autoresearch-changelog.md"
-    metadata_path = destination / "autoresearch-summary.json"
-    backup_path.write_text(original_text, encoding="utf-8")
-    improved_path.write_text(best_text, encoding="utf-8")
-    changelog_path.write_text(
-        _build_changelog(profile, baseline_score, best_score, active_questions, active_scenarios, kept_changes, discarded_changes),
-        encoding="utf-8",
-    )
-    metadata_path.write_text(
-        json.dumps(
-            {
-                "skill": profile.name,
-                "baseline_score": baseline_score,
-                "best_score": best_score,
-                "iterations": iterations,
-                "baseline_runs": baseline_runs,
-                "questions": active_questions,
-                "scenarios": active_scenarios,
-                "kept_changes": kept_changes,
-                "discarded_changes": discarded_changes,
-                "timestamp": datetime.now(UTC).isoformat().replace("+00:00", "Z"),
-            },
-            indent=2,
-        ),
-        encoding="utf-8",
-    )
+    improvement = round(best_score - baseline_score, 2)
+    saved_state = None
+    backup_file = None
+    diff_text = "No persisted skill update because improvement did not exceed 2.0%."
+    if improvement > 2.0:
+        saved_state, backup_file = save_improved_skill(
+            skill_name=profile.name,
+            label=profile.label,
+            source_path=profile.source_path,
+            previous_content=baseline_text,
+            new_content=best_text,
+            previous_score=baseline_score,
+            new_score=best_score,
+            questions=active_questions,
+            scenarios=active_scenarios,
+            kept_changes=kept_changes,
+            discarded_changes=discarded_changes,
+        )
+        diff_text = diff_skill(profile.name)
 
     if not silent_voice:
-        spoken_lines = speak_autoresearch_completion(baseline_score, best_score)
+        spoken_lines = speak_autoresearch_completion(baseline_score, best_score, persisted=improvement > 2.0)
         if is_macos():
             console.print("[bold orange3]Daniel voice notification:[/bold orange3]")
             for line in spoken_lines:
                 console.print(f"- {line}")
 
+    diff_panel = Panel.fit(
+        diff_text if len(diff_text) < 3000 else diff_text[:3000] + "\n...",
+        title="Skill Diff Summary",
+        border_style="magenta",
+    )
+    console.print(diff_panel)
     console.print(
         Panel.fit(
             f"[bold magenta]Autoresearch complete[/bold magenta]\n"
             f"[bold]Skill:[/bold] {profile.label}\n"
             f"[bold]Baseline:[/bold] {baseline_score}%\n"
             f"[bold]Improved:[/bold] {best_score}%\n"
-            f"[bold]Backup:[/bold] {backup_path}\n"
-            f"[bold]Improved snapshot:[/bold] {improved_path}\n"
-            f"[bold]Changelog:[/bold] {changelog_path}",
+            f"[bold]Improvement delta:[/bold] {improvement}%\n"
+            f"[bold]Current skill:[/bold] {describe_skill_structure(profile.name)[1]}\n"
+            f"[bold]Backup:[/bold] {backup_file if backup_file else 'Not written'}\n"
+            f"[bold]Changelog:[/bold] {describe_skill_structure(profile.name)[2]}\n"
+            f"[bold]Status:[/bold] {'Skill improved and saved permanently. New version active.' if saved_state else 'Research complete, but active version unchanged.'}",
             title="Autoresearch",
             border_style="magenta",
         )

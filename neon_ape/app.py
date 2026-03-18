@@ -27,10 +27,12 @@ from neon_ape.commands.uninstall import run_uninstall
 from neon_ape.obsidian_sync import run_sync as run_obsidian_sync
 from neon_ape.services.logging_utils import configure_logger
 from neon_ape.services.storage import connect
+from neon_ape.skills.manager import diff_skill, list_skills as list_saved_skills, skills_root, use_skill_version
 from neon_ape.ui.ascii import EVA_BANNER
 from neon_ape.ui.layout import build_checklist_table, build_main_menu
 from neon_ape.ui.theme import APP_TITLE, section_style
 from neon_ape.ui.views import build_landing_panel, build_missing_tools_panel, build_quickstart_table, build_scans_table, build_status_table, build_welcome_panel
+from rich.table import Table
 
 
 class NeonApeApp:
@@ -96,6 +98,9 @@ class NeonApeApp:
         self.autoresearch_iterations = 6
         self.autoresearch_baseline_runs = 8
         self.autoresearch_overnight = False
+        self.skill_command: str | None = None
+        self.skill_name: str | None = None
+        self.skill_version: str | None = None
 
     def run(self) -> None:
         if self.command == "man":
@@ -182,6 +187,61 @@ class NeonApeApp:
             if not success:
                 raise SystemExit(1)
             return
+
+        if self.command == "skill":
+            self.config.ensure_directories()
+            self.logger = configure_logger(self.config.log_path)
+            if self.skill_command == "list":
+                rows = list_saved_skills()
+                table = Table(title="Persistent Skills", expand=False)
+                table.add_column("Skill", style="bold magenta")
+                table.add_column("Label")
+                table.add_column("Score")
+                table.add_column("Last Improved")
+                table.add_column("Store")
+                for row in rows:
+                    table.add_row(
+                        str(row.get("skill", "-")),
+                        str(row.get("label", "-")),
+                        str(row.get("score", "-")),
+                        str(row.get("last_improved", "-")),
+                        str(skills_root()),
+                    )
+                if not rows:
+                    self.console.print(f"[bold yellow]No persistent skills saved yet.[/bold yellow] Store: {skills_root()}")
+                else:
+                    self.console.print(table)
+                return
+            if self.skill_command == "diff":
+                try:
+                    content = diff_skill(str(self.skill_name))
+                except ValueError as exc:
+                    self.console.print(f"[bold red]{exc}[/bold red]")
+                    return
+                self.console.print(
+                    Panel.fit(
+                        content,
+                        title=f"Skill Diff: {self.skill_name}",
+                        style=section_style("accent"),
+                    )
+                )
+                return
+            if self.skill_command == "use":
+                try:
+                    active = use_skill_version(str(self.skill_name), str(self.skill_version))
+                except ValueError as exc:
+                    self.console.print(f"[bold red]{exc}[/bold red]")
+                    return
+                self.console.print(
+                    Panel.fit(
+                        f"[bold]Skill:[/bold] {active.get('skill')}\n"
+                        f"[bold]Activated:[/bold] {active.get('activated_at')}\n"
+                        f"[bold]Score:[/bold] {active.get('score')}",
+                        title="Skill Activated",
+                        style=section_style("accent"),
+                    )
+                )
+                return
 
         self.config.ensure_directories()
         self.logger = configure_logger(self.config.log_path)

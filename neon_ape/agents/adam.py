@@ -186,7 +186,7 @@ def run_adam(
     )
     if autoresearch_enabled:
         research_skill = autoresearch_target or ("angel-eyes" if highest_risk > 0 else "magi-checklist")
-        console.print(f"[bold orange3]Adam is beginning autoresearch on {research_skill}...[/bold orange3]")
+        console.print(f"[bold orange3]Adam is beginning autoresearch on {research_skill}. Persistent skill storage will be updated if the score improves enough.[/bold orange3]")
         run_autoresearch(
             console,
             config=config,
