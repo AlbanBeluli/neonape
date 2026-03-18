@@ -485,12 +485,14 @@ class NeonApeApp:
         table.add_column("Objective")
         table.add_column("Last Improved")
         table.add_column("Last Run")
+        table.add_column("Export")
         for row in rows:
             table.add_row(
                 str(row.get("skill", "-")),
                 f"{row.get('score', '-')}",
                 str(row.get("last_improved", "-")),
                 str(row.get("last_run", "-")),
+                "YES" if row.get("export_detected") else "NO",
             )
         if rows:
             self.console.print(table)

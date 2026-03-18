@@ -242,6 +242,7 @@ def run_autoresearch(
             score=None,
             default_questions=list(profile.default_questions),
             default_scenarios=list(profile.default_scenarios),
+            export_detected=False,
         )
     else:
         persisted = load_current_skill(profile.name)
@@ -370,13 +371,18 @@ def run_autoresearch(
             discarded_changes=discarded_changes,
             default_questions=persisted_defaults["questions"],
             default_scenarios=persisted_defaults["scenarios"],
+            export_detected=bool(best_objective_report.get("export_detected")),
         )
         diff_text = diff_skill(profile.name)
     elif dry_run:
         diff_text = "Dry run mode: no persistent skill update was written."
 
     if not dry_run:
-        record_skill_run(profile.name, score=best_score)
+        record_skill_run(
+            profile.name,
+            score=best_score,
+            export_detected=bool(best_objective_report.get("export_detected")),
+        )
 
     if not silent_voice and not no_voice:
         spoken_lines = speak_autoresearch_completion(baseline_score, best_score, persisted=improvement > 2.0)
@@ -391,11 +397,15 @@ def run_autoresearch(
     if pdf_enabled:
         report_dir = daily_report_dir or build_daily_report_dir(profile.name)
         report_dir.mkdir(parents=True, exist_ok=True)
-        pdf_path = report_dir / f"{profile.name}-autoresearch.pdf"
-        oracle_lines = []
-        for key, value in sorted((best_objective_report.get("oracle_scores") or {}).items()):
-            reason = str((best_objective_report.get("oracle_reasons") or {}).get(key, "-"))
-            oracle_lines.append(f"- {key.replace('_', ' ')}: {value}% | {reason}")
+        pdf_path = report_dir / f"{datetime.now(UTC).date().isoformat()}-{profile.name}-report.pdf"
+        oracle_rows = [
+            (
+                key.replace("_", " "),
+                f"{value}%",
+                str((best_objective_report.get("oracle_reasons") or {}).get(key, "-")),
+            )
+            for key, value in sorted((best_objective_report.get("oracle_scores") or {}).items())
+        ]
         changes = [f"- kept iteration {item['iteration']}: {item['change']}" for item in kept_changes[:6]] or ["- No changes kept"]
         generate_pdf_report(
             pdf_path,
@@ -408,14 +418,20 @@ def run_autoresearch(
                 ("Export Detected", "YES" if best_objective_report.get("export_detected") else "NO"),
             ),
             sections=(
-                ("Findings", "\n".join(changes)),
-                ("Sensitive Paths", str((best_objective_report.get("oracle_reasons") or {}).get("sensitive_path_detection", "-"))),
-                ("Oracles Summary", "\n".join(oracle_lines)),
-                ("Score Summary", f"Objective delta: {improvement}%\nSubjective best: {best_subjective}%"),
+                ("Executive Summary", f"{profile.label} objective score remained at {best_score}% with export detection set to {'YES' if best_objective_report.get('export_detected') else 'NO'}."),
+                ("Change Log", "\n".join(changes)),
+                ("Skill Diff", diff_text),
             ),
+            oracle_rows=oracle_rows,
             objective_history=objective_history,
             subjective_history=subjective_history,
+            sparkline_text=(
+                f"Objective: {render_sparkline(objective_history[-24:])}\n"
+                f"Subjective: {render_sparkline(subjective_history[-24:])}"
+            ),
         )
+        if is_macos():
+            subprocess.run(["open", str(pdf_path)], check=False, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
     diff_panel = Panel.fit(
         diff_text if len(diff_text) < 3000 else diff_text[:3000] + "\n...",

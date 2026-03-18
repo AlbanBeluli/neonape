@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import UTC, datetime
 import shutil
 import subprocess
 import sys
@@ -68,8 +69,8 @@ def run_adam(
         subdomains = _discover_subdomains(console, connection, target=active_target, scan_dir=config.scan_dir, workflow_name="pd_web_chain")
         progress.advance(task)
         if not subdomains:
-            console.print("[bold red]Adam found no subdomains to continue with.[/bold red]")
-            return False
+            console.print("[bold yellow]Adam found no subdomains from subfinder. Falling back to the seed target.[/bold yellow]")
+            subdomains = [active_target]
 
         progress.update(task, description="Probing live HTTP targets")
         httpx_success, httpx_findings = run_projectdiscovery_batch_tool(
@@ -87,8 +88,8 @@ def run_adam(
 
         live_http_targets = _unique_targets(finding.get("host", "") for finding in httpx_findings if finding.get("host"))
         if not live_http_targets:
-            console.print("[bold red]Adam found no live web targets.[/bold red]")
-            return False
+            console.print("[bold yellow]Adam found no parsed live web targets from httpx. Falling back to the seed target URL.[/bold yellow]")
+            live_http_targets = [f"https://{active_target}"]
 
         progress.update(task, description="Crawling reachable web paths")
         katana_success, katana_findings = run_projectdiscovery_batch_tool(
@@ -179,11 +180,12 @@ def run_adam(
 
     pdf_path: Path | None = None
     if pdf_enabled:
-        pdf_path = daily_report_dir / f"{sanitize_target_name(active_target)}-adam-report.pdf"
+        pdf_path = daily_report_dir / f"{datetime.now(UTC).date().isoformat()}-{sanitize_target_name(active_target)}-report.pdf"
         pdf_sections = [
+            ("Executive Summary", f"Adam completed the full local workflow for {active_target}. Highest observed risk score: {highest_risk}."),
             ("Findings", _read_report_section(findings_path)),
             ("Sensitive Paths", _read_report_section(sensitive_paths_path)),
-            ("Review Summary", _read_report_section(review_summary_path)),
+            ("Skill Diff", "Not applicable for Adam mission reports."),
         ]
         generate_pdf_report(
             pdf_path,
@@ -195,7 +197,13 @@ def run_adam(
                 ("Daily Folder", str(daily_report_dir)),
             ),
             sections=pdf_sections,
+            oracle_rows=(
+                ("Highest risk", str(highest_risk), "Top Angel Eyes score observed in the current review overview"),
+                ("Artifacts", "3", "Findings.md, Sensitive-Paths.md, and Review-Summary.md copied to the daily folder"),
+            ),
         )
+        if is_macos():
+            subprocess.run(["open", str(pdf_path)], check=False, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
     _seed_adam_completed_steps(connection)
     console.print("[bold orange3]Loading MAGI checklist sequence...[/bold orange3]")

@@ -3,7 +3,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 [![Python](https://img.shields.io/badge/Python-3.11%2B-blue.svg)](pyproject.toml)
 
-Neon Ape is a local-only Python terminal dashboard for lab-safe penetration testing workflows. It combines a Neon Genesis Evangelion-inspired terminal UI, guided checklist execution, encrypted local notes, and safe wrappers around common recon tooling.
+Neon Ape is a self-evolving pen-testing dashboard with a local-only terminal UI, guided checklist execution, encrypted local notes, PDF reporting, and safe wrappers around common recon tooling.
 
 ## At a Glance
 

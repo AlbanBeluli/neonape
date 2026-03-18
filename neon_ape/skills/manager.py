@@ -65,6 +65,7 @@ def initialize_skill_state(
     score: float | None = None,
     default_questions: list[str] | None = None,
     default_scenarios: list[str] | None = None,
+    export_detected: bool = False,
 ) -> dict[str, Any]:
     existing = load_current_skill(skill_name, root=root)
     if existing is not None:
@@ -88,6 +89,7 @@ def initialize_skill_state(
         activated_at=_timestamp(),
         default_questions=default_questions,
         default_scenarios=default_scenarios,
+        export_detected=export_detected,
     )
     _write_current(skill_name, state, root=root)
     _append_changelog(
@@ -113,6 +115,7 @@ def save_improved_skill(
     discarded_changes: list[dict[str, Any]],
     default_questions: list[str] | None = None,
     default_scenarios: list[str] | None = None,
+    export_detected: bool = False,
     root: Path | None = None,
 ) -> tuple[dict[str, Any], Path | None]:
     current = load_current_skill(skill_name, root=root)
@@ -129,6 +132,7 @@ def save_improved_skill(
             activated_at=_timestamp(),
             default_questions=default_questions,
             default_scenarios=default_scenarios,
+            export_detected=export_detected,
         )
     backup_file = _write_history_backup(skill_name, backup, root=root)
     state = _build_state(
@@ -145,6 +149,7 @@ def save_improved_skill(
         discarded_changes=discarded_changes,
         default_questions=default_questions,
         default_scenarios=default_scenarios,
+        export_detected=export_detected,
     )
     _write_current(skill_name, state, root=root)
     _append_changelog(
@@ -170,6 +175,7 @@ def list_skills(*, root: Path | None = None) -> list[dict[str, Any]]:
                 "score": payload.get("score"),
                 "last_improved": payload.get("activated_at", "-"),
                 "last_run": payload.get("last_run_at") or dt.fromtimestamp(current.stat().st_mtime, tz=UTC).strftime("%Y-%m-%d %H:%M:%S"),
+                "export_detected": payload.get("export_detected", False),
                 "source_path": payload.get("source_path", "-"),
             }
         )
@@ -254,6 +260,7 @@ def record_skill_run(
     skill_name: str,
     *,
     score: float,
+    export_detected: bool = False,
     root: Path | None = None,
 ) -> dict[str, Any]:
     current = load_current_skill(skill_name, root=root)
@@ -261,6 +268,7 @@ def record_skill_run(
         raise ValueError(f"Skill not found: {skill_name}")
     current["score"] = score
     current["last_run_at"] = _timestamp()
+    current["export_detected"] = export_detected
     _write_current(skill_name, current, root=root)
     return current
 
@@ -280,6 +288,7 @@ def _build_state(
     discarded_changes: list[dict[str, Any]] | None = None,
     default_questions: list[str] | None = None,
     default_scenarios: list[str] | None = None,
+    export_detected: bool = False,
 ) -> dict[str, Any]:
     return {
         "skill": skill_name,
@@ -290,6 +299,7 @@ def _build_state(
         "improvement": improvement,
         "activated_at": activated_at,
         "last_run_at": activated_at,
+        "export_detected": export_detected,
         "questions": questions or [],
         "scenarios": scenarios or [],
         "default_questions": default_questions or [],
