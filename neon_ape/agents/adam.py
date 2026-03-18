@@ -192,6 +192,7 @@ def run_adam(
             config=config,
             skill_target=research_skill,
             daily_report_dir=daily_report_dir,
+            auto=True,
         )
     spoken_lines = speak_completion(highest_risk, checklist_complete=checklist_success)
     if is_macos():

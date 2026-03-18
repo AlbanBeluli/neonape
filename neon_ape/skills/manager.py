@@ -52,6 +52,8 @@ def initialize_skill_state(
     content: str,
     root: Path | None = None,
     score: float | None = None,
+    default_questions: list[str] | None = None,
+    default_scenarios: list[str] | None = None,
 ) -> dict[str, Any]:
     existing = load_current_skill(skill_name, root=root)
     if existing is not None:
@@ -64,6 +66,8 @@ def initialize_skill_state(
         score=score,
         improvement=0.0,
         activated_at=_timestamp(),
+        default_questions=default_questions,
+        default_scenarios=default_scenarios,
     )
     _write_current(skill_name, state, root=root)
     _append_changelog(
@@ -87,6 +91,8 @@ def save_improved_skill(
     scenarios: list[str],
     kept_changes: list[dict[str, Any]],
     discarded_changes: list[dict[str, Any]],
+    default_questions: list[str] | None = None,
+    default_scenarios: list[str] | None = None,
     root: Path | None = None,
 ) -> tuple[dict[str, Any], Path | None]:
     current = load_current_skill(skill_name, root=root)
@@ -101,6 +107,8 @@ def save_improved_skill(
             score=previous_score,
             improvement=0.0,
             activated_at=_timestamp(),
+            default_questions=default_questions,
+            default_scenarios=default_scenarios,
         )
     backup_file = _write_history_backup(skill_name, backup, root=root)
     state = _build_state(
@@ -115,6 +123,8 @@ def save_improved_skill(
         scenarios=scenarios,
         kept_changes=kept_changes,
         discarded_changes=discarded_changes,
+        default_questions=default_questions,
+        default_scenarios=default_scenarios,
     )
     _write_current(skill_name, state, root=root)
     _append_changelog(
@@ -198,6 +208,27 @@ def describe_skill_structure(skill_name: str, *, root: Path | None = None) -> li
     return lines
 
 
+def update_skill_defaults(
+    skill_name: str,
+    *,
+    default_questions: list[str],
+    default_scenarios: list[str],
+    root: Path | None = None,
+) -> dict[str, Any]:
+    current = load_current_skill(skill_name, root=root)
+    if current is None:
+        raise ValueError(f"Skill not found: {skill_name}")
+    current["default_questions"] = default_questions
+    current["default_scenarios"] = default_scenarios
+    _write_current(skill_name, current, root=root)
+    _append_changelog(
+        skill_name,
+        f"## {_timestamp()}\n- Stored default autoresearch questions and scenarios for headless runs.\n",
+        root=root,
+    )
+    return current
+
+
 def _build_state(
     *,
     skill_name: str,
@@ -211,6 +242,8 @@ def _build_state(
     scenarios: list[str] | None = None,
     kept_changes: list[dict[str, Any]] | None = None,
     discarded_changes: list[dict[str, Any]] | None = None,
+    default_questions: list[str] | None = None,
+    default_scenarios: list[str] | None = None,
 ) -> dict[str, Any]:
     return {
         "skill": skill_name,
@@ -222,6 +255,8 @@ def _build_state(
         "activated_at": activated_at,
         "questions": questions or [],
         "scenarios": scenarios or [],
+        "default_questions": default_questions or [],
+        "default_scenarios": default_scenarios or [],
         "kept_changes": kept_changes or [],
         "discarded_changes": discarded_changes or [],
     }

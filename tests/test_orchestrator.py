@@ -28,3 +28,8 @@ def test_speak_autoresearch_completion_includes_persist_notice() -> None:
     lines = speak_autoresearch_completion(51.2, 56.8, persisted=True)
     assert "Autoresearch complete." in lines[0]
     assert "Skill improved and saved permanently. New version active." in lines[1]
+
+
+def test_speak_autoresearch_completion_without_persist_notice() -> None:
+    lines = speak_autoresearch_completion(51.2, 51.9, persisted=False)
+    assert len(lines) == 1

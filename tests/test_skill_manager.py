@@ -17,8 +17,11 @@ def test_skill_manager_persists_current_and_history(tmp_path) -> None:
         content='{"name": "baseline"}',
         root=tmp_path,
         score=50.0,
+        default_questions=["Does it stay practical?"],
+        default_scenarios=["Operator resumes from MAGI."],
     )
     assert state["skill"] == "magi-checklist"
+    assert state["default_questions"] == ["Does it stay practical?"]
 
     saved, backup = save_improved_skill(
         skill_name="magi-checklist",
@@ -32,6 +35,8 @@ def test_skill_manager_persists_current_and_history(tmp_path) -> None:
         scenarios=["Operator resumes from MAGI."],
         kept_changes=[{"iteration": 1, "change": "Clarify command previews."}],
         discarded_changes=[],
+        default_questions=["Does it stay practical?"],
+        default_scenarios=["Operator resumes from MAGI."],
         root=tmp_path,
     )
 

@@ -6,7 +6,9 @@ from hashlib import sha256
 from pathlib import Path
 from statistics import mean
 import json
+import subprocess
 import sys
+from shutil import which
 
 from rich.console import Console, Group
 from rich.live import Live
@@ -14,11 +16,14 @@ from rich.panel import Panel
 from rich.prompt import Prompt
 from rich.table import Table
 
+from neon_ape.services.llm_triage import cline_available, ollama_available
 from neon_ape.skills.manager import (
     describe_skill_structure,
     diff_skill,
     initialize_skill_state,
+    load_current_skill,
     save_improved_skill,
+    update_skill_defaults,
 )
 from neon_ape.workflows.orchestrator import is_macos, speak_autoresearch_completion
 
@@ -45,11 +50,14 @@ SKILL_REGISTRY: dict[str, SkillProfile] = {
             "Does the checklist stay practical for recon and review operators?",
             "Does every step make the next action obvious?",
             "Does the checklist preserve status cleanly in the local database?",
+            "Does the checklist keep host discovery and service enumeration ordered clearly?",
+            "Does each checklist action make the stored evidence and next review step obvious?",
         ),
         default_scenarios=(
             "A new operator needs to understand host discovery and service enumeration quickly.",
             "An Adam run finishes and the operator needs to continue manual validation from MAGI.",
             "A reviewer checks whether the stored checklist state matches the guided workflow.",
+            "A recon operator must resume after a partial overnight run without losing context.",
         ),
         mutation_bank=(
             "Clarify that each step should reference the exact wrapper or command preview shown in Neon Ape.",
@@ -67,11 +75,14 @@ SKILL_REGISTRY: dict[str, SkillProfile] = {
             "Does Angel Eyes clearly rank sensitive paths by evidence and risk?",
             "Does the review language stay defensive and operator-focused?",
             "Does the output make it obvious which web exposures need manual review first?",
+            "Does risk scoring distinguish blocked paths from directly exposed paths correctly?",
+            "Does the grouped path view make duplicate evidence across tools easier to review?",
         ),
         default_scenarios=(
             "A target exposes .env and .git paths behind mixed 200 and 403 responses.",
             "A reviewer needs to explain why a blocked log file is still important.",
             "An Obsidian export should summarize only the highest-priority sensitive path evidence.",
+            "A web review needs to separate secrets, logs, repo metadata, and server config paths cleanly.",
         ),
         mutation_bank=(
             "Highlight that category, status, source tool, and risk score should always travel together.",
@@ -200,23 +211,52 @@ def run_autoresearch(
     iterations: int = 6,
     baseline_runs: int = 8,
     daily_report_dir: Path | None = None,
+    auto: bool = False,
+    headless: bool = False,
+    no_voice: bool = False,
+    dry_run: bool = False,
     silent_voice: bool = False,
 ) -> bool:
     profile = _resolve_skill_profile(skill_target, console)
     if profile is None:
         return False
+    if headless:
+        auto = True
+        no_voice = True
+    if headless and sys.stdin.isatty():
+        console.print("[bold orange3]Headless mode engaged. Using stored defaults and suppressing voice output.[/bold orange3]")
 
-    active_questions = _collect_questions(console, profile, questions or [])
-    active_scenarios = _collect_scenarios(console, profile, scenarios or [])
+    persisted = None
     original_text = profile.source_path.read_text(encoding="utf-8")
-    persisted = initialize_skill_state(
-        skill_name=profile.name,
-        label=profile.label,
-        source_path=profile.source_path,
-        content=original_text,
-        score=None,
+    if not dry_run:
+        persisted = initialize_skill_state(
+            skill_name=profile.name,
+            label=profile.label,
+            source_path=profile.source_path,
+            content=original_text,
+            score=None,
+            default_questions=list(profile.default_questions),
+            default_scenarios=list(profile.default_scenarios),
+        )
+    else:
+        persisted = load_current_skill(profile.name)
+
+    persisted_defaults = _ensure_skill_defaults(console, config, profile, persisted, dry_run=dry_run)
+    active_questions = _collect_questions(
+        console,
+        profile,
+        questions or [],
+        auto=auto,
+        persisted_defaults=persisted_defaults["questions"],
     )
-    baseline_text = str(persisted.get("content", original_text))
+    active_scenarios = _collect_scenarios(
+        console,
+        profile,
+        scenarios or [],
+        auto=auto,
+        persisted_defaults=persisted_defaults["scenarios"],
+    )
+    baseline_text = str((persisted or {}).get("content", original_text))
     baseline_samples = _score_samples(profile, baseline_text, active_questions, active_scenarios, runs=baseline_runs)
     baseline_score = round(mean(baseline_samples), 2)
     best_text = baseline_text
@@ -262,7 +302,7 @@ def run_autoresearch(
     saved_state = None
     backup_file = None
     diff_text = "No persisted skill update because improvement did not exceed 2.0%."
-    if improvement > 2.0:
+    if improvement > 2.0 and not dry_run:
         saved_state, backup_file = save_improved_skill(
             skill_name=profile.name,
             label=profile.label,
@@ -275,15 +315,21 @@ def run_autoresearch(
             scenarios=active_scenarios,
             kept_changes=kept_changes,
             discarded_changes=discarded_changes,
+            default_questions=persisted_defaults["questions"],
+            default_scenarios=persisted_defaults["scenarios"],
         )
         diff_text = diff_skill(profile.name)
+    elif dry_run:
+        diff_text = "Dry run mode: no persistent skill update was written."
 
-    if not silent_voice:
+    if not silent_voice and not no_voice:
         spoken_lines = speak_autoresearch_completion(baseline_score, best_score, persisted=improvement > 2.0)
         if is_macos():
             console.print("[bold orange3]Daniel voice notification:[/bold orange3]")
             for line in spoken_lines:
                 console.print(f"- {line}")
+    if headless:
+        _send_headless_notification(profile.name, best_score, improvement, console)
 
     diff_panel = Panel.fit(
         diff_text if len(diff_text) < 3000 else diff_text[:3000] + "\n...",
@@ -301,7 +347,7 @@ def run_autoresearch(
             f"[bold]Current skill:[/bold] {describe_skill_structure(profile.name)[1]}\n"
             f"[bold]Backup:[/bold] {backup_file if backup_file else 'Not written'}\n"
             f"[bold]Changelog:[/bold] {describe_skill_structure(profile.name)[2]}\n"
-            f"[bold]Status:[/bold] {'Skill improved and saved permanently. New version active.' if saved_state else 'Research complete, but active version unchanged.'}",
+            f"[bold]Status:[/bold] {'Skill improved and saved permanently. New version active.' if saved_state else ('Dry run complete. Active version unchanged.' if dry_run else 'Research complete, but active version unchanged.')}",
             title="Autoresearch",
             border_style="magenta",
         )
@@ -326,11 +372,13 @@ def _resolve_skill_profile(skill_target: str | None, console: Console) -> SkillP
     return profile
 
 
-def _collect_questions(console: Console, profile: SkillProfile, provided: list[str]) -> list[str]:
+def _collect_questions(console: Console, profile: SkillProfile, provided: list[str], *, auto: bool, persisted_defaults: list[str]) -> list[str]:
     if provided:
         return provided[:6]
+    if auto:
+        return persisted_defaults[:6]
     if not sys.stdin.isatty():
-        return list(profile.default_questions)
+        return persisted_defaults[:6]
     console.print("[bold magenta]Autoresearch checklist questions[/bold magenta] [dim](3-6 yes/no prompts)[/dim]")
     questions = []
     for index, default in enumerate(profile.default_questions, start=1):
@@ -344,11 +392,13 @@ def _collect_questions(console: Console, profile: SkillProfile, provided: list[s
     return questions
 
 
-def _collect_scenarios(console: Console, profile: SkillProfile, provided: list[str]) -> list[str]:
+def _collect_scenarios(console: Console, profile: SkillProfile, provided: list[str], *, auto: bool, persisted_defaults: list[str]) -> list[str]:
     if provided:
         return provided[:5]
+    if auto:
+        return persisted_defaults[:5]
     if not sys.stdin.isatty():
-        return list(profile.default_scenarios)
+        return persisted_defaults[:5]
     console.print("[bold magenta]Autoresearch test scenarios[/bold magenta] [dim](3-5 cases)[/dim]")
     scenarios = []
     for index, default in enumerate(profile.default_scenarios, start=1):
@@ -546,3 +596,81 @@ def _build_changelog(
     else:
         lines.append("- None discarded")
     return "\n".join(lines) + "\n"
+
+
+def _ensure_skill_defaults(
+    console: Console,
+    config,
+    profile: SkillProfile,
+    persisted: dict[str, object] | None,
+    *,
+    dry_run: bool,
+) -> dict[str, list[str]]:
+    questions = list((persisted or {}).get("default_questions", []) or [])
+    scenarios = list((persisted or {}).get("default_scenarios", []) or [])
+    if questions and scenarios:
+        return {"questions": questions, "scenarios": scenarios}
+    generated = _generate_default_criteria(config, profile)
+    defaults = {
+        "questions": generated["questions"] or list(profile.default_questions),
+        "scenarios": generated["scenarios"] or list(profile.default_scenarios),
+    }
+    if not dry_run and persisted is not None:
+        update_skill_defaults(
+            profile.name,
+            default_questions=defaults["questions"],
+            default_scenarios=defaults["scenarios"],
+        )
+        console.print(f"[bold magenta]Stored default autoresearch criteria for {profile.name}.[/bold magenta]")
+    return defaults
+
+
+def _generate_default_criteria(config, profile: SkillProfile) -> dict[str, list[str]]:
+    prompt = (
+        "Return compact JSON with keys questions and scenarios.\n"
+        "questions must be 4 to 6 yes/no review questions.\n"
+        "scenarios must be 3 to 5 practical review scenarios.\n"
+        "Stay local-operator focused.\n"
+        f"Skill name: {profile.name}\n"
+        f"Skill label: {profile.label}\n"
+        f"Source path: {profile.source_path}\n"
+    )
+    try:
+        if config.llm_provider == "cline" and cline_available():
+            completed = subprocess.run(["cline", prompt], capture_output=True, text=True, check=False, timeout=60)
+            if completed.returncode == 0:
+                return _parse_defaults_payload(completed.stdout)
+        if config.llm_provider == "ollama" and ollama_available():
+            completed = subprocess.run(["ollama", "run", config.llm_model, prompt], capture_output=True, text=True, check=False, timeout=60)
+            if completed.returncode == 0:
+                return _parse_defaults_payload(completed.stdout)
+    except Exception:
+        pass
+    return {"questions": list(profile.default_questions), "scenarios": list(profile.default_scenarios)}
+
+
+def _parse_defaults_payload(raw: str) -> dict[str, list[str]]:
+    try:
+        start = raw.find("{")
+        end = raw.rfind("}")
+        payload = json.loads(raw[start : end + 1])
+        questions = [str(item).strip() for item in payload.get("questions", []) if str(item).strip()]
+        scenarios = [str(item).strip() for item in payload.get("scenarios", []) if str(item).strip()]
+        return {"questions": questions[:6], "scenarios": scenarios[:5]}
+    except Exception:
+        return {"questions": [], "scenarios": []}
+
+
+def _send_headless_notification(skill_name: str, best_score: float, delta: float, console: Console) -> None:
+    if not is_macos():
+        return
+    notifier = which("terminal-notifier")
+    if not notifier:
+        console.print("[bold yellow]Headless notification skipped: terminal-notifier not found.[/bold yellow]")
+        return
+    message = f"Finished {skill_name} -> new score {best_score}% (Δ {delta}%)"
+    subprocess.run(
+        [notifier, "-title", "Neon Ape Autoresearch", "-message", message],
+        check=False,
+    )
+    console.print(f"[bold orange3]macOS notification:[/bold orange3] {message}")

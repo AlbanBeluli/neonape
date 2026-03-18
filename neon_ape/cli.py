@@ -24,8 +24,8 @@ def build_parser() -> argparse.ArgumentParser:
             "  neonape adam --target example.com\n"
             "  neonape adam --autoresearch --target example.com\n\n"
             "Autoresearch:\n"
-            "  neonape autoresearch --target magi-checklist\n"
-            "  neonape autoresearch --target angel-eyes --overnight\n\n"
+            "  neonape autoresearch --target magi-checklist --auto\n"
+            "  neonape autoresearch --target angel-eyes --headless --rounds 100\n\n"
             "Skills:\n"
             "  neonape skill list\n"
             "  neonape skill diff magi-checklist\n"
@@ -74,6 +74,10 @@ def build_parser() -> argparse.ArgumentParser:
     autoresearch_parser.add_argument("--iterations", type=int, default=6, help="Number of tiny-change iterations to evaluate.")
     autoresearch_parser.add_argument("--rounds", type=int, help="Alias for --iterations.")
     autoresearch_parser.add_argument("--baseline-runs", type=int, default=8, help="How many scoring runs to average for baseline and candidates.")
+    autoresearch_parser.add_argument("--auto", action="store_true", help="Use stored default questions and scenarios with no interactive prompts.")
+    autoresearch_parser.add_argument("--headless", action="store_true", help="Enable auto mode, suppress voice, and send a terminal-notifier message on macOS.")
+    autoresearch_parser.add_argument("--no-voice", action="store_true", help="Suppress Daniel voice lines for this autoresearch run.")
+    autoresearch_parser.add_argument("--dry-run", action="store_true", help="Run scoring and diff generation without persisting a new active version.")
     autoresearch_parser.add_argument("--overnight", action="store_true", help="Label the run as an overnight autonomous session in the dashboard and changelog.")
     skill_parser = subparsers.add_parser("skill", help="Inspect or switch persistent Neon Ape skill versions.")
     skill_subparsers = skill_parser.add_subparsers(dest="skill_command", required=True)
@@ -268,6 +272,10 @@ def main() -> int:
     app.autoresearch_scenarios = getattr(args, "scenario", []) if args.command == "autoresearch" else []
     app.autoresearch_iterations = ((getattr(args, "rounds", None) or getattr(args, "iterations", 6)) if args.command == "autoresearch" else 6)
     app.autoresearch_baseline_runs = getattr(args, "baseline_runs", 8) if args.command == "autoresearch" else 8
+    app.autoresearch_auto = getattr(args, "auto", False) if args.command == "autoresearch" else False
+    app.autoresearch_headless = getattr(args, "headless", False) if args.command == "autoresearch" else False
+    app.autoresearch_no_voice = getattr(args, "no_voice", False) if args.command == "autoresearch" else False
+    app.autoresearch_dry_run = getattr(args, "dry_run", False) if args.command == "autoresearch" else False
     app.autoresearch_overnight = getattr(args, "overnight", False) if args.command == "autoresearch" else False
     app.skill_command = getattr(args, "skill_command", None) if args.command == "skill" else None
     app.skill_name = getattr(args, "skill_name", None) if args.command == "skill" else None

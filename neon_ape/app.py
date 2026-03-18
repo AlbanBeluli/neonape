@@ -97,6 +97,10 @@ class NeonApeApp:
         self.autoresearch_scenarios: list[str] = []
         self.autoresearch_iterations = 6
         self.autoresearch_baseline_runs = 8
+        self.autoresearch_auto = False
+        self.autoresearch_headless = False
+        self.autoresearch_no_voice = False
+        self.autoresearch_dry_run = False
         self.autoresearch_overnight = False
         self.skill_command: str | None = None
         self.skill_name: str | None = None
@@ -183,6 +187,10 @@ class NeonApeApp:
                 overnight=self.autoresearch_overnight,
                 iterations=self.autoresearch_iterations,
                 baseline_runs=self.autoresearch_baseline_runs,
+                auto=self.autoresearch_auto,
+                headless=self.autoresearch_headless,
+                no_voice=self.autoresearch_no_voice,
+                dry_run=self.autoresearch_dry_run,
             )
             if not success:
                 raise SystemExit(1)

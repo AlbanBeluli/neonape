@@ -94,6 +94,7 @@ def _adam_autoresearch() -> Group:
     table.add_row("Standalone", "`neonape autoresearch --target magi-checklist`", "Researches one Neon Ape skill and writes backup/improved snapshots + changelog")
     table.add_row("Adam-assisted", "`neonape adam --autoresearch --target example.com`", "Runs Adam first, then autoresearches MAGI Checklist or Angel Eyes")
     table.add_row("Explicit skill", "`neonape adam --autoresearch --autoresearch-target angel-eyes --target example.com`", "Forces Adam to refine a specific post-run skill area")
+    table.add_row("Headless", "`neonape autoresearch --target angel-eyes --headless --rounds 100`", "Uses stored defaults, suppresses voice, and sends a macOS terminal-notifier completion message")
     return Group(
         Rule("AUTORESEARCH", style="red"),
         table,
@@ -113,6 +114,7 @@ def _adam_examples() -> Group:
     table.add_row("Full run", "`neonape adam --target stoic.ee`")
     table.add_row("Prompt for target", "`neonape adam`")
     table.add_row("Adam + autoresearch", "`neonape adam --autoresearch --target stoic.ee`")
+    table.add_row("Headless autoresearch", "`neonape autoresearch --target magi-checklist --rounds 50 --auto`")
     table.add_row("Review saved results after run", "`neonape db domain --target stoic.ee`")
     table.add_row("Re-open the docs", "`neonape man adam`")
     return Group(Rule("EXAMPLES", style="red"), table)

@@ -205,6 +205,16 @@ def test_parse_autoresearch_rounds_alias() -> None:
     assert args.rounds == 30
 
 
+def test_parse_autoresearch_auto_and_headless_flags() -> None:
+    parser = build_parser()
+    args = parser.parse_args(["autoresearch", "--target", "angel-eyes", "--auto", "--headless", "--dry-run", "--no-voice"])
+    assert args.command == "autoresearch"
+    assert args.auto is True
+    assert args.headless is True
+    assert args.dry_run is True
+    assert args.no_voice is True
+
+
 def test_parse_skill_commands() -> None:
     parser = build_parser()
     args = parser.parse_args(["skill", "list"])
