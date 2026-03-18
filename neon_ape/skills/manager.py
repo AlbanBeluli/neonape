@@ -8,11 +8,21 @@ from pathlib import Path
 from typing import Any
 
 
+def neonape_root() -> Path:
+    override = os.environ.get("NEONAPE_HOME", "").strip()
+    if override:
+        return Path(override).expanduser()
+    skills_override = os.environ.get("NEONAPE_SKILLS_DIR", "").strip()
+    if skills_override:
+        return Path(skills_override).expanduser().parent
+    return Path.home() / ".neonape"
+
+
 def skills_root() -> Path:
     override = os.environ.get("NEONAPE_SKILLS_DIR", "").strip()
     if override:
         return Path(override).expanduser()
-    return Path.home() / ".neonape" / "skills"
+    return neonape_root() / "skills"
 
 
 def ensure_skills_root(root: Path | None = None) -> Path:

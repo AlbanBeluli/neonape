@@ -265,6 +265,7 @@ def run_autoresearch(
     baseline_objective_report = evaluate_skill_objectively(
         skill_name=profile.name,
         candidate_text=baseline_text,
+        config=config,
         test_targets=active_targets,
     )
     baseline_score = float(baseline_objective_report["score"])
@@ -292,6 +293,7 @@ def run_autoresearch(
             best_objective_report,
             objective_history,
             subjective_history,
+            export_detected=bool(best_objective_report.get("export_detected")),
         ),
         console=console,
         refresh_per_second=4,
@@ -304,6 +306,7 @@ def run_autoresearch(
             objective_report = evaluate_skill_objectively(
                 skill_name=profile.name,
                 candidate_text=candidate_text,
+                config=config,
                 test_targets=active_targets,
             )
             candidate_score = float(objective_report["score"])
@@ -341,6 +344,7 @@ def run_autoresearch(
                     subjective_history,
                     iteration=iteration,
                     overnight=overnight,
+                    export_detected=bool(best_objective_report.get("export_detected")),
                 )
             )
 
@@ -392,6 +396,7 @@ def run_autoresearch(
             f"[bold]Improved objective:[/bold] {best_score}%\n"
             f"[bold]Improved subjective:[/bold] {best_subjective}%\n"
             f"[bold]Improvement delta:[/bold] {improvement}%\n"
+            f"[bold]Export detected:[/bold] {'YES' if best_objective_report.get('export_detected') else 'NO'}\n"
             f"[bold]Current skill:[/bold] {describe_skill_structure(profile.name)[1]}\n"
             f"[bold]Backup:[/bold] {backup_file if backup_file else 'Not written'}\n"
             f"[bold]Changelog:[/bold] {describe_skill_structure(profile.name)[2]}\n"
@@ -569,6 +574,7 @@ def _build_dashboard(
     *,
     iteration: int = 0,
     overnight: bool = False,
+    export_detected: bool = False,
 ) -> Group:
     stats = Table.grid(padding=(0, 2))
     stats.add_column(style="bold magenta")
@@ -581,6 +587,7 @@ def _build_dashboard(
     stats.add_row("Best Objective", f"{best_score}%")
     stats.add_row("Baseline Subjective", f"{baseline_subjective}%")
     stats.add_row("Best Subjective", f"{best_subjective}%")
+    stats.add_row("Export Detected", "YES" if export_detected else "NO")
     stats.add_row("Kept", str(len(kept_changes)))
     stats.add_row("Discarded", str(len(discarded_changes)))
 
