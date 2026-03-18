@@ -1,15 +1,19 @@
 from __future__ import annotations
 
+import logging
 from pathlib import Path
 from xml.etree import ElementTree as ET
 
 from neon_ape.tools.base import ToolResult, run_command
 
+LOGGER = logging.getLogger(__name__)
+XMLSyntaxError = getattr(ET, "XMLSyntaxError", ET.ParseError)
+
 
 SAFE_PROFILES = {
-    "host_discovery": ["nmap", "-sn"],
-    "service_scan": ["nmap", "-sV"],
-    "aggressive": ["nmap", "-A", "-T4"],
+    "host_discovery": ["nmap", "-sn", "-Pn"],
+    "service_scan": ["nmap", "-sV", "-Pn"],
+    "aggressive": ["nmap", "-A", "-T4", "-Pn"],
 }
 
 
@@ -20,9 +24,15 @@ def build_nmap_command(target: str, profile: str, output_xml: Path) -> list[str]
 
 
 def parse_nmap_xml(xml_path: Path) -> list[dict[str, str]]:
-    if not xml_path.exists():
+    if not xml_path.exists() or xml_path.stat().st_size == 0:
+        LOGGER.warning("Nmap produced no XML output - continuing without parsing")
         return []
-    root = ET.parse(xml_path).getroot()
+    try:
+        root = ET.parse(xml_path).getroot()
+    except (ET.ParseError, XMLSyntaxError, FileNotFoundError) as exc:
+        LOGGER.warning("Nmap produced no XML output - continuing without parsing: %s", exc)
+        return []
+
     findings: list[dict[str, str]] = []
     for host in root.findall("host"):
         address = host.find("address")
@@ -79,7 +89,10 @@ def execute_nmap(command: list[str], target: str) -> ToolResult:
         output_index = command.index("-oX") + 1
         if output_index < len(command):
             raw_output_path = command[output_index]
-    return run_command("nmap", target, command, timeout=300, raw_output_path=raw_output_path)
+    result = run_command("nmap", target, command, timeout=180, raw_output_path=raw_output_path)
+    if result.exit_code != 0 and result.stderr:
+        LOGGER.warning("nmap failed for %s: %s", target, result.stderr.strip())
+    return result
 
 
 def _sanitize_token(token: str) -> str:
