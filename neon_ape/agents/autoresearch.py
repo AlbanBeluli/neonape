@@ -603,8 +603,10 @@ def _build_dashboard(
     oracle_table = Table(title="Objective Oracles", expand=False)
     oracle_table.add_column("Oracle", style="bold magenta")
     oracle_table.add_column("Score")
+    oracle_table.add_column("Reason")
+    reasons = objective_report.get("oracle_reasons") or {}
     for key, value in sorted((objective_report.get("oracle_scores") or {}).items()):
-        oracle_table.add_row(key.replace("_", " "), f"{value}%")
+        oracle_table.add_row(key.replace("_", " "), f"{value}%", str(reasons.get(key, "-")))
 
     log_table = Table(title="Change Log", expand=False)
     log_table.add_column("Decision", style="bold")
