@@ -96,7 +96,7 @@ def _adam_autoresearch() -> Group:
     table.add_row("Adam-assisted", "`neonape adam --autoresearch --target example.com`", "Runs Adam first, then autoresearches MAGI Checklist or Angel Eyes")
     table.add_row("Explicit skill", "`neonape adam --autoresearch --autoresearch-target angel-eyes --target example.com`", "Forces Adam to refine a specific post-run skill area")
     table.add_row("Headless", "`neonape autoresearch --target angel-eyes --headless --rounds 100`", "Uses stored defaults, suppresses voice, and sends a macOS terminal-notifier completion message")
-    table.add_row("PDF output", "`neonape autoresearch --target angel-eyes --auto --test-target stoic.ee --pdf`", "Writes a PDF summary into the daily report folder")
+    table.add_row("PDF output", "`neonape autoresearch --target angel-eyes --auto --test-target example.com --pdf`", "Writes a PDF summary into the daily report folder")
     return Group(
         Rule("AUTORESEARCH", style="red"),
         table,
@@ -114,14 +114,14 @@ def _adam_examples() -> Group:
     table = Table(title="Adam Examples", expand=False)
     table.add_column("Scenario", style="bold red")
     table.add_column("Command")
-    table.add_row("Full run", "`neonape adam --target stoic.ee`")
-    table.add_row("Full run + PDF", "`neonape adam --target stoic.ee --pdf`")
+    table.add_row("Full run", "`neonape adam --target example.com`")
+    table.add_row("Full run + PDF", "`neonape adam --target example.com --pdf`")
     table.add_row("Prompt for target", "`neonape adam`")
-    table.add_row("Adam + autoresearch", "`neonape adam --autoresearch --target stoic.ee`")
+    table.add_row("Adam + autoresearch", "`neonape adam --autoresearch --target example.com`")
     table.add_row("Headless autoresearch", "`neonape autoresearch --target magi-checklist --rounds 50 --auto`")
     table.add_row("Objective harness", "`neonape autoresearch --target angel-eyes --headless --rounds 50`")
     table.add_row("Status", "`neonape status`")
-    table.add_row("Review saved results after run", "`neonape db domain --target stoic.ee`")
+    table.add_row("Review saved results after run", "`neonape db domain --target example.com`")
     table.add_row("Re-open the docs", "`neonape man adam`")
     return Group(Rule("EXAMPLES", style="red"), table)
 

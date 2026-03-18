@@ -94,7 +94,7 @@ def _section_examples() -> Group:
     table = Table(title="Detailed Examples", expand=False)
     table.add_column("Scenario", style="bold magenta")
     table.add_column("Command")
-    table.add_row("1. Adam full run", "`neonape adam --target stoic.ee`")
+    table.add_row("1. Adam full run", "`neonape adam --target example.com`")
     table.add_row("2. Adam operator docs", "`neonape man adam`")
     table.add_row("3. MAGI checklist docs", "`neonape man checklist`")
     table.add_row("4. Angel Eyes review", "`neonape review --target example.com --web-paths`")

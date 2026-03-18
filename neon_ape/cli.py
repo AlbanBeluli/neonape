@@ -28,7 +28,7 @@ def build_parser() -> argparse.ArgumentParser:
             "  neonape adam --autoresearch --target example.com\n\n"
             "Autoresearch:\n"
             "  neonape autoresearch --target magi-checklist --auto\n"
-            "  neonape autoresearch --target angel-eyes --auto --test-target stoic.ee --pdf\n"
+            "  neonape autoresearch --target angel-eyes --auto --test-target example.com --pdf\n"
             "  neonape autoresearch --target angel-eyes --headless --rounds 100\n\n"
             "Skills:\n"
             "  neonape skill list\n"
