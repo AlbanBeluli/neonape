@@ -1,25 +1,40 @@
-# Neon Ape
+# Neon Ape 🟠🟣
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 [![Python](https://img.shields.io/badge/Python-3.11%2B-blue.svg)](pyproject.toml)
 
-Neon Ape is a self-evolving pen-testing dashboard with a local-only terminal UI, guided checklist execution, encrypted local notes, PDF reporting, and safe wrappers around common recon tooling.
+**The self-evolving, Neon Genesis Evangelion-themed penetration testing dashboard.**
 
-## At a Glance
+One command. Full recon. MAGI Checklist. Angel Eyes review. Autoresearch that improves itself overnight. Beautiful PDF reports. Calm voice notifications. Everything local-only, encrypted, and operator-focused.
 
-- Local-only workflow with no web server or exposed listener
-- Interactive `neonape` shell plus direct CLI subcommands
-- Safe wrappers for `nmap`, `subfinder`, `assetfinder`, `amass`, `dnsx`, `httpx`, `naabu`, `katana`, `gobuster`, and `nuclei`
-- Chained recon flows for light recon, deep recon, web triage, and JS-heavy targets
-- SQLite-backed checklist, scan history, findings, and encrypted notes
-- Config-backed Obsidian sync with vault auto-discovery and dry-run previews
-- Optional local findings triage through `cline` or `ollama`, with a configurable local model when using Ollama
+Built for real OSCP and professional penetration testers who want a simple workflow with strong defaults.
 
 This project does not automate brute force, exploitation, credential attacks, or post-exploitation activity.
 
-## Why NeonApe?
+## What Neon Ape Gives You
 
-NeonApe is built for operators who want speed, local control, and a workflow that actually feels good to use. It stays local-only, ships with no telemetry, keeps data on your machine, and defaults to safer recon and review flows instead of reckless automation. The goal is simple: give you a sharp, memorable terminal dashboard with Evangelion energy, fast chained workflows, encrypted notes, and enough structure to move from recon to review without turning your shell into a mess.
+- **Adam**  
+  `neonape adam --target example.com --pdf`  
+  Runs the full local workflow: recon, Angel Eyes review, MAGI checklist, daily report folder, and PDF output.
+
+- **MAGI Checklist**  
+  Guided, step-by-step execution with stored progress, attached tool actions, and clear next steps.
+
+- **Angel Eyes**  
+  Sensitive path grouping, risk scoring, duplicate collapse, and defensive review output.
+
+- **Autoresearch**  
+  `neonape autoresearch --target angel-eyes --auto`  
+  Runs controlled local experiments, keeps only improvements, and stores skill history under `~/.neonape/skills/`.
+
+- **Objective Oracles**  
+  Real scoring from live-host evidence, sensitive-path visibility, DB persistence, export creation, and review ordering.
+
+- **PDF Reports**  
+  NGE-styled PDF reports written into the daily report folder with summaries, oracle data, score charts, and diff context.
+
+- **Live Status**  
+  `neonape status` shows current objective scores, last improved time, last run time, export signal, and overall health.
 
 ## Quick Start
 
@@ -37,21 +52,30 @@ If your shell has not picked up `~/.local/bin` yet, run:
 ~/.local/bin/neonape-obsidian -h
 ```
 
-Useful first commands:
+Recommended first commands:
 
 ```bash
-neonape
-neonape --workflow pd_chain --target example.com
-neonape --workflow pd_web_chain --target example.com
-neonape --workflow light_recon --target example.com
-neonape --workflow js_web_chain --target example.com
-neonape --tool nuclei --target https://example.com
-neonape db scans
-neonape db inventory
-neonape notes list
-neonape obsidian --target-note Pentests/example.com/Target.md --dry-run
+neonape adam --target stoic.ee --pdf
+neonape autoresearch --target angel-eyes --auto --test-target stoic.ee --pdf
+neonape status
+neonape man
 neonape review --target example.com --llm-triage
+neonape db domain --target example.com
 ```
+
+## Core Commands
+
+| Command | What it does |
+| --- | --- |
+| `neonape adam --target <domain> --pdf` | Full autonomous run with daily report and PDF |
+| `neonape autoresearch --target <skill> --auto` | Let Neon Ape improve one skill locally |
+| `neonape status` | Live skill health dashboard |
+| `neonape man` | Eva-themed operator manual |
+| `neonape man adam` / `neonape man checklist` | Dedicated manual pages |
+
+## Why This Exists
+
+Neon Ape exists for operators who want one terminal dashboard that stays local, feels sharp, and carries a clean workflow from recon to review to reporting. It keeps the Evangelion identity, but the core value is practical: less shell sprawl, clearer guidance, better persistence, and a toolchain that can refine itself over time without leaving your machine.
 
 ## Preview
 
