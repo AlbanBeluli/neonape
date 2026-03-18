@@ -47,10 +47,10 @@ Everything stays **100% local**, Fernet-encrypted, safe on Parrot OS or macOS.
 neonape setup tools --yes
 
 # The command you will use every day
-neonape adam --target stoic.ee --pdf
+neonape adam --target example.com --pdf
 
 # Or just review + PDF
-neonape autoresearch --target angel-eyes --auto --test-target stoic.ee --pdf
+neonape autoresearch --target angel-eyes --auto --test-target example.com --pdf
 
 # Check health
 neonape status
