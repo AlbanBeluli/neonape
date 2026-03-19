@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime
+import json
 import shutil
 import subprocess
 import sys
@@ -22,7 +23,13 @@ from neon_ape.commands.tools import (
     run_gobuster,
     run_projectdiscovery_batch_tool,
 )
-from neon_ape.db.repository import mark_checklist_item_status, record_scan, review_overview
+from neon_ape.db.repository import (
+    domain_overview,
+    list_checklist_items,
+    mark_checklist_item_status,
+    record_scan,
+    review_overview,
+)
 from neon_ape.knowledge.graph import build_target_graph, lookup_prior_context
 from neon_ape.obsidian_sync import resolve_vault_path, run_sync as run_obsidian_sync, sanitize_target_name
 from neon_ape.reports.pdf_generator import generate_pdf_report
@@ -239,33 +246,6 @@ def run_adam(
         review_summary_path = target_dir / "Review-Summary.md"
         daily_report_dir = copy_daily_reports(active_target, [findings_path, sensitive_paths_path, review_summary_path])
 
-    pdf_path: Path | None = None
-    if pdf_enabled:
-        pdf_path = daily_report_dir / f"{datetime.now(UTC).date().isoformat()}-{sanitize_target_name(active_target)}-report.pdf"
-        pdf_sections = [
-            ("Executive Summary", f"Adam completed the full local workflow for {active_target}. Highest observed risk score: {highest_risk}."),
-            ("Findings", _read_report_section(findings_path)),
-            ("Sensitive Paths", _read_report_section(sensitive_paths_path)),
-            ("Skill Diff", "Not applicable for Adam mission reports."),
-        ]
-        generate_pdf_report(
-            pdf_path,
-            title="Neon Ape Adam Report",
-            subtitle=f"Target: {active_target}",
-            summary_rows=(
-                ("Target", active_target),
-                ("Highest Risk", str(highest_risk)),
-                ("Daily Folder", str(daily_report_dir)),
-            ),
-            sections=pdf_sections,
-            oracle_rows=(
-                ("Highest risk", str(highest_risk), "Top Angel Eyes score observed in the current review overview"),
-                ("Artifacts", "3", "Findings.md, Sensitive-Paths.md, and Review-Summary.md copied to the daily folder"),
-            ),
-        )
-        if is_macos():
-            subprocess.run(["open", str(pdf_path)], check=False, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-
     _seed_adam_completed_steps(connection)
     _announce_mode(
         console,
@@ -283,6 +263,42 @@ def run_adam(
         prompt_manual=False,
         silent_completed=True,
     )
+    refreshed_overview = _safe_domain_overview(connection, active_target, limit=5000)
+    workflow_pdf_data = _build_workflow_pdf_data(
+        connection,
+        target=active_target,
+        overview=refreshed_overview,
+        checklist_items=_safe_checklist_items(connection),
+        highest_risk=highest_risk,
+    )
+    pdf_path: Path | None = None
+    if pdf_enabled:
+        pdf_path = daily_report_dir / f"{datetime.now(UTC).date().isoformat()}-{sanitize_target_name(active_target)}-report.pdf"
+        generate_pdf_report(
+            pdf_path,
+            title="Neon Ape Adam Report",
+            subtitle=f"Target: {active_target}",
+            summary_rows=(
+                ("Target", active_target),
+                ("Highest Risk", str(highest_risk)),
+                ("Daily Folder", str(daily_report_dir)),
+                ("Checklist Complete", "YES" if checklist_success else "PARTIAL"),
+            ),
+            sections=(
+                ("Executive Summary", f"Adam completed the local workflow for {active_target}. Highest observed risk score: {highest_risk}."),
+                ("Findings", _read_report_section(findings_path)),
+                ("Sensitive Paths", _read_report_section(sensitive_paths_path)),
+                ("Review Summary", _read_report_section(review_summary_path)),
+            ),
+            oracle_rows=(
+                ("Highest risk", str(highest_risk), "Top Angel Eyes score observed in the current review overview"),
+                ("Artifacts", "3", "Findings.md, Sensitive-Paths.md, and Review-Summary.md copied to the daily folder"),
+                ("Checklist", "done" if checklist_success else "partial", "MAGI checklist auto-run status after Adam recon"),
+            ),
+            workflow_data=workflow_pdf_data,
+        )
+        if is_macos():
+            subprocess.run(["open", str(pdf_path)], check=False, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     if autoresearch_enabled:
         research_skill = autoresearch_target or ("angel-eyes" if highest_risk > 0 else "magi-checklist")
         console.print(f"[bold orange3]Adam is beginning autoresearch on {research_skill}. Persistent skill storage will be updated if the score improves enough.[/bold orange3]")
@@ -855,3 +871,180 @@ def _reflection_lines(graph_state: dict[str, object], highest_risk: int, *, chec
         lines.append("No strong prior local analog found in the graph")
     lines.append("MAGI checklist is ready for final execution" if checklist_ready else "MAGI checklist deferred")
     return lines
+
+
+def _build_workflow_pdf_data(
+    connection,
+    *,
+    target: str,
+    overview: dict[str, object],
+    checklist_items: list[dict[str, object]],
+    highest_risk: int,
+) -> dict[str, object]:
+    return {
+        "target": target,
+        "highest_risk": highest_risk,
+        "service_inventory": [dict(item) for item in overview.get("inventory", []) if isinstance(item, dict)],
+        "nmap_results": _query_nmap_results(connection, target),
+        "nuclei_findings": _query_nuclei_findings(connection, target),
+        "sensitive_paths": [dict(item) for item in overview.get("angel_eyes", {}).get("items", []) if isinstance(item, dict)],
+        "magi_checklist": [dict(item) for item in checklist_items],
+        "raw_findings": _query_raw_findings(connection, target),
+        "ffuf_summary": overview.get("web_paths", {}).get("ffuf", []) if isinstance(overview.get("web_paths"), dict) else [],
+        "passive_recon": _query_passive_recon_results(connection, target),
+        "recommendations": _build_report_recommendations(overview, checklist_items, highest_risk),
+    }
+
+
+def _query_nmap_results(connection, target: str) -> list[dict[str, object]]:
+    if not hasattr(connection, "execute"):
+        return []
+    pattern = f"%{target}%"
+    rows = connection.execute(
+        """
+        SELECT sf.key, sf.value, sf.metadata_json, sr.finished_at
+        FROM scan_findings sf
+        JOIN scan_runs sr ON sr.id = sf.scan_run_id
+        WHERE sr.tool_name = 'nmap'
+          AND sr.target LIKE ?
+          AND sf.finding_type = 'port'
+        ORDER BY sf.id DESC
+        """,
+        (pattern,),
+    ).fetchall()
+    results: list[dict[str, object]] = []
+    for row in rows:
+        metadata = _load_metadata_json(row["metadata_json"])
+        results.append(
+            {
+                "host": str(metadata.get("host", "")),
+                "port": str(metadata.get("key", row["key"])),
+                "protocol": str(metadata.get("protocol", "")),
+                "service_name": str(metadata.get("service_name", "")),
+                "product": str(metadata.get("product", "")),
+                "version": str(metadata.get("version", "")),
+                "banner": str(metadata.get("extrainfo", "")),
+                "summary": str(row["value"]),
+                "finished_at": str(row["finished_at"] or ""),
+            }
+        )
+    return results
+
+
+def _query_nuclei_findings(connection, target: str) -> list[dict[str, object]]:
+    if not hasattr(connection, "execute"):
+        return []
+    pattern = f"%{target}%"
+    rows = connection.execute(
+        """
+        SELECT sf.key, sf.value, sf.metadata_json, sr.finished_at
+        FROM scan_findings sf
+        JOIN scan_runs sr ON sr.id = sf.scan_run_id
+        WHERE sr.tool_name = 'nuclei'
+          AND sr.target LIKE ?
+          AND sf.finding_type = 'nuclei_finding'
+        ORDER BY sf.id DESC
+        """,
+        (pattern,),
+    ).fetchall()
+    findings: list[dict[str, object]] = []
+    for row in rows:
+        metadata = _load_metadata_json(row["metadata_json"])
+        findings.append(
+            {
+                "template_id": str(metadata.get("template_id", row["key"])),
+                "name": str(metadata.get("name", "")),
+                "severity": str(metadata.get("severity", "")),
+                "matched_at": str(metadata.get("host", "")),
+                "matcher_name": str(metadata.get("matcher_name", "")),
+                "summary": str(row["value"]),
+                "finished_at": str(row["finished_at"] or ""),
+            }
+        )
+    return findings
+
+
+def _query_raw_findings(connection, target: str) -> list[dict[str, object]]:
+    if not hasattr(connection, "execute"):
+        return []
+    pattern = f"%{target}%"
+    rows = connection.execute(
+        """
+        SELECT sr.tool_name, sf.finding_type, sf.key, sf.value, sf.category, sf.risk_score, sf.metadata_json
+        FROM scan_findings sf
+        JOIN scan_runs sr ON sr.id = sf.scan_run_id
+        WHERE sr.target LIKE ?
+           OR sf.key LIKE ?
+           OR sf.value LIKE ?
+           OR sf.metadata_json LIKE ?
+        ORDER BY sf.id DESC
+        LIMIT 5000
+        """,
+        (pattern, pattern, pattern, pattern),
+    ).fetchall()
+    return [dict(row) for row in rows]
+
+
+def _query_passive_recon_results(connection, target: str) -> list[dict[str, object]]:
+    if not hasattr(connection, "execute"):
+        return []
+    pattern = f"%{target}%"
+    rows = connection.execute(
+        """
+        SELECT sf.finding_type, sf.key, sf.value, sf.metadata_json
+        FROM scan_findings sf
+        JOIN scan_runs sr ON sr.id = sf.scan_run_id
+        WHERE sr.tool_name = 'passive_recon'
+          AND sr.target LIKE ?
+        ORDER BY sf.id DESC
+        """,
+        (pattern,),
+    ).fetchall()
+    return [dict(row) for row in rows]
+
+
+def _build_report_recommendations(
+    overview: dict[str, object],
+    checklist_items: list[dict[str, object]],
+    highest_risk: int,
+) -> list[str]:
+    recommendations = [
+        f"Prioritize manual review for the highest observed risk score ({highest_risk}).",
+        "Confirm exposed services and sensitive paths against the stored evidence before any follow-up testing.",
+        "Preserve artifacts from Findings.md, Sensitive-Paths.md, and Review-Summary.md for reporting.",
+    ]
+    pending = [item for item in checklist_items if str(item.get("status", "todo")) != "done"]
+    if pending:
+        recommendations.append(f"Complete remaining MAGI checklist items: {len(pending)} still not marked done.")
+    reviews = overview.get("reviews", [])
+    if reviews:
+        top_titles = [str(item.get("title") or item.get("finding_key") or "").strip() for item in reviews[:3] if isinstance(item, dict)]
+        recommendations.append(f"Top review signals: {', '.join(title for title in top_titles if title)}")
+    return recommendations
+
+
+def _load_metadata_json(value: object) -> dict[str, object]:
+    if not value:
+        return {}
+    try:
+        data = json.loads(str(value))
+    except (TypeError, json.JSONDecodeError):
+        return {}
+    return data if isinstance(data, dict) else {}
+
+
+def _safe_domain_overview(connection, target: str, *, limit: int) -> dict[str, object]:
+    if not hasattr(connection, "execute"):
+        return {
+            "inventory": [],
+            "reviews": [],
+            "angel_eyes": {"items": [], "grouped": {}},
+            "web_paths": {"ffuf": [], "katana": [], "gobuster": []},
+        }
+    return domain_overview(connection, target, limit=limit)
+
+
+def _safe_checklist_items(connection) -> list[dict[str, object]]:
+    if not hasattr(connection, "execute"):
+        return []
+    return [dict(item) for item in list_checklist_items(connection)]
