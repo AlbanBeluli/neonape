@@ -89,7 +89,7 @@ If your shell has not picked up `~/.local/bin` yet, run:
 
 You wanted a simple checklist-driven life as a pen-tester, Neon Genesis Evangelion aesthetics, self-improving tools, and zero external exposure. Neon Ape delivers exactly that — and now it literally gets smarter every night.
 
-**Version:** 0.9.6 (Production)  
+**Version:** 0.9.8 (Production)  
 **Theme:** Neon Genesis Evangelion  
 **License:** MIT  
 Made with love for the operators who want to feel like they’re piloting Unit-01 while doing recon.

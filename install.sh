@@ -13,6 +13,7 @@ BIN_DIR="${NEONAPE_BIN_DIR:-$DEFAULT_BIN_DIR}"
 BRANCH="${NEONAPE_BRANCH:-$DEFAULT_BRANCH}"
 REPO_URL="${NEONAPE_REPO_URL:-}"
 SOURCE_DIR=""
+UPDATE_MODE="${NEONAPE_UPDATE_MODE:-0}"
 
 usage() {
   cat <<'EOF'
@@ -181,19 +182,24 @@ if [[ -n "$SOURCE_DIR" ]]; then
 else
   require_cmd git
   if [[ -d "$SRC_DIR/.git" ]]; then
-    git -C "$SRC_DIR" fetch --depth 1 origin "$BRANCH"
-    git -C "$SRC_DIR" checkout -B "$BRANCH" "origin/$BRANCH"
+    git -C "$SRC_DIR" fetch --quiet --depth 1 origin "$BRANCH"
+    git -C "$SRC_DIR" checkout --quiet -B "$BRANCH" "origin/$BRANCH"
   else
     rm -rf "$SRC_DIR"
-    git clone --depth 1 --branch "$BRANCH" "$REPO_URL" "$SRC_DIR"
+    git clone --quiet --depth 1 --branch "$BRANCH" "$REPO_URL" "$SRC_DIR"
   fi
 fi
 
 python3 -m venv "$VENV_DIR"
-if ! "$VENV_DIR/bin/python" -m pip install --no-build-isolation "$SRC_DIR"; then
+INSTALL_LOG="$(mktemp)"
+trap 'rm -f "$INSTALL_LOG"' EXIT
+if ! "$VENV_DIR/bin/python" -m pip install --disable-pip-version-check --no-build-isolation --quiet "$SRC_DIR" >"$INSTALL_LOG" 2>&1; then
   echo "Initial install failed. Attempting setuptools/wheel bootstrap..." >&2
-  "$VENV_DIR/bin/python" -m pip install setuptools wheel
-  "$VENV_DIR/bin/python" -m pip install --no-build-isolation "$SRC_DIR"
+  "$VENV_DIR/bin/python" -m pip install --disable-pip-version-check --quiet setuptools wheel >>"$INSTALL_LOG" 2>&1
+  if ! "$VENV_DIR/bin/python" -m pip install --disable-pip-version-check --no-build-isolation --quiet "$SRC_DIR" >>"$INSTALL_LOG" 2>&1; then
+    cat "$INSTALL_LOG" >&2
+    exit 1
+  fi
 fi
 ln -sf "$VENV_DIR/bin/neonape" "$BIN_DIR/neonape"
 ln -sf "$VENV_DIR/bin/neonape-obsidian" "$BIN_DIR/neonape-obsidian"
@@ -213,8 +219,17 @@ REPO_URL=$REPO_URL
 SRC_DIR=$SRC_DIR
 EOF
 
+INSTALLED_VERSION="$("$VENV_DIR/bin/python" - <<'PY'
+from importlib.metadata import version
+print(version("neonape"))
+PY
+)"
+
 cat <<EOF
-Neon Ape installed.
+Neon Ape $([[ "$UPDATE_MODE" == "1" ]] && echo "updated" || echo "installed").
+
+Version:
+  $INSTALLED_VERSION
 
 Command:
   $BIN_DIR/neonape

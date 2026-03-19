@@ -50,10 +50,30 @@ def run_update(
         check=False,
     )
     if completed.stdout.strip():
-        console.print(completed.stdout.strip())
+        console.print(_summarize_update_output(completed.stdout))
     if completed.returncode != 0:
         if completed.stderr.strip():
             console.print(f"[bold red]{completed.stderr.strip()}[/bold red]")
         console.print(f"[bold red]Update failed with exit code {completed.returncode}.[/bold red]")
         return
     console.print("[bold green]Neon Ape update completed.[/bold green]")
+
+
+def _summarize_update_output(stdout: str) -> str:
+    lines = [line.rstrip() for line in stdout.splitlines()]
+    start_markers = ("Neon Ape updated.", "Neon Ape installed.")
+    for marker in start_markers:
+        for index, line in enumerate(lines):
+            if line.strip() == marker:
+                return "\n".join(lines[index:]).strip()
+    return "\n".join(
+        line
+        for line in lines
+        if line.strip()
+        and not line.startswith("Requirement already satisfied")
+        and "Building wheel for neonape" not in line
+        and "Successfully built neonape" not in line
+        and "Successfully installed neonape" not in line
+        and "Preparing metadata" not in line
+        and "Processing " not in line
+    ).strip()
