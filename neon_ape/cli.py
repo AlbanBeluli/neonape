@@ -10,7 +10,7 @@ def build_parser() -> argparse.ArgumentParser:
         prog="neonape",
         description=(
             "Neon Ape is a local-only Evangelion-inspired operator console for Adam-driven recon, "
-            "MAGI checklists, Angel Eyes web review, and encrypted reporting."
+            "knowledge-graph-aware review, MAGI checklists, Angel Eyes web review, and encrypted reporting."
         ),
         epilog=(
             "Recommended:\n"
@@ -26,7 +26,8 @@ def build_parser() -> argparse.ArgumentParser:
             "  neonape adam --target example.com\n"
             "  neonape adam --target example.com --pdf\n"
             "  neonape adam --target example.com --use-gobuster\n"
-            "  neonape adam --autoresearch --target example.com\n\n"
+            "  neonape adam --autoresearch --target example.com\n"
+            "  Adam loads .cline.md rules and local knowledge-graph context on every run\n\n"
             "Autoresearch:\n"
             "  neonape autoresearch --target magi-checklist --auto\n"
             "  neonape autoresearch --target angel-eyes --auto --test-target example.com --pdf\n"
@@ -79,7 +80,7 @@ def build_parser() -> argparse.ArgumentParser:
     config_set = config_subparsers.add_parser("set", help="Set a config key in ~/.config/neonape/config.toml.")
     config_set.add_argument("key", help="Config key to change.")
     config_set.add_argument("value", help="New value for the config key.")
-    adam_parser = subparsers.add_parser("adam", help="Run Adam, the autonomous web review orchestrator.")
+    adam_parser = subparsers.add_parser("adam", help="Run Adam, the autonomous knowledge-graph-aware web review orchestrator.")
     adam_parser.add_argument("--target", help="Seed domain for Adam. If omitted, Neon Ape prompts for a domain.")
     adam_parser.add_argument("--pdf", action="store_true", help="Generate a PDF report in the daily report folder when Adam completes.")
     adam_parser.add_argument("--autoresearch", action="store_true", help="Run autoresearch against MAGI Checklist or Angel Eyes after Adam finishes recon.")

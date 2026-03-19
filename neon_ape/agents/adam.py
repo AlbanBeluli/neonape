@@ -8,8 +8,10 @@ from pathlib import Path
 from types import SimpleNamespace
 
 from rich.console import Console
+from rich.panel import Panel
 from rich.progress import BarColumn, Progress, SpinnerColumn, TextColumn
 from rich.prompt import Prompt
+from rich.table import Table
 
 from neon_ape.agents.autoresearch import run_autoresearch
 from neon_ape.agents.magi import run_magi_checklist
@@ -21,6 +23,7 @@ from neon_ape.commands.tools import (
     run_projectdiscovery_batch_tool,
 )
 from neon_ape.db.repository import mark_checklist_item_status, record_scan, review_overview
+from neon_ape.knowledge.graph import build_target_graph, lookup_prior_context
 from neon_ape.obsidian_sync import resolve_vault_path, run_sync as run_obsidian_sync, sanitize_target_name
 from neon_ape.reports.pdf_generator import generate_pdf_report
 from neon_ape.tools.base import ToolResult, run_command
@@ -31,6 +34,7 @@ from neon_ape.workflows.orchestrator import build_daily_report_dir, copy_daily_r
 ADAM_REQUIRED_TOOLS = ("subfinder", "httpx", "katana", "nuclei")
 ADAM_NUCLEI_TIMEOUT = 180
 ADAM_NUCLEI_SEVERITIES = "medium,high,critical"
+ADAM_MEMORY_PATH = Path(__file__).resolve().parents[2] / ".cline.md"
 
 
 def run_adam(
@@ -53,6 +57,31 @@ def run_adam(
     if not active_target:
         console.print("[bold red]Adam needs a target domain.[/bold red]")
         return False
+    adam_memory = _load_adam_memory()
+    _announce_mode(
+        console,
+        "Planner",
+        [
+            f"Target validated: {active_target}",
+            "Methodology: local-only OSCP-style recon, review, and reporting",
+            "Rule loaded: never auto-exploit; keep all guidance defensive and evidence-backed",
+        ],
+    )
+    if adam_memory:
+        console.print(
+            Panel(
+                "\n".join(f"- {line}" for line in adam_memory[:4]),
+                title="Adam Memory (.cline.md)",
+                border_style="magenta",
+            )
+        )
+
+    prior_context = lookup_prior_context(connection, active_target, limit=5)
+    _announce_mode(
+        console,
+        "Researcher",
+        _format_prior_context(active_target, prior_context),
+    )
 
     missing = [tool for tool in ADAM_REQUIRED_TOOLS if tool not in detected_tools]
     if use_ffuf and "ffuf" not in detected_tools and "gobuster" not in detected_tools:
@@ -65,6 +94,14 @@ def run_adam(
         return False
 
     console.print(f"[bold orange3]Hunting Angels across {active_target}...[/bold orange3]")
+    _announce_mode(
+        console,
+        "Mapper / Enumerator",
+        [
+            "Running bounded active enumeration with prioritized web review",
+            "Sequence: subfinder -> httpx -> katana -> ffuf/gobuster fallback -> nuclei",
+        ],
+    )
     with Progress(
         SpinnerColumn(style="bold red"),
         TextColumn("[bold orange3]{task.description}[/bold orange3]"),
@@ -158,9 +195,17 @@ def run_adam(
         )
         progress.advance(task)
 
+    _announce_mode(
+        console,
+        "Assessor",
+        ["Correlating findings, risk scores, and review evidence", "Preparing safe manual validation guidance only"],
+    )
     vault_path = resolve_vault_path(None, config)
     overview = review_overview(connection, active_target, limit=100)
     highest_risk = max((int(item.get("risk_score", 0) or 0) for item in overview.get("angel_eyes", {}).get("items", [])), default=0)
+    graph_state = build_target_graph(connection, active_target, limit=100)
+    _render_graph_state(console, graph_state)
+    _render_manual_validation_guidance(console, overview, highest_risk)
     if vault_path is None:
         console.print("[bold yellow]Adam could not resolve an Obsidian vault. Export will fall back to a local daily report folder.[/bold yellow]")
         daily_report_dir = build_daily_report_dir(active_target)
@@ -222,6 +267,11 @@ def run_adam(
             subprocess.run(["open", str(pdf_path)], check=False, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
     _seed_adam_completed_steps(connection)
+    _announce_mode(
+        console,
+        "Reflector",
+        _reflection_lines(graph_state, highest_risk, checklist_ready=True),
+    )
     console.print("[bold orange3]Loading MAGI checklist sequence...[/bold orange3]")
     checklist_success = run_magi_checklist(
         console,
@@ -243,6 +293,15 @@ def run_adam(
             daily_report_dir=daily_report_dir,
             auto=True,
         )
+    _announce_mode(
+        console,
+        "Reporter",
+        [
+            f"Daily folder: {daily_report_dir}",
+            "Prepared executive summary, review artifacts, and PDF if requested",
+            "Manual review guidance is included; no exploit automation is ever performed",
+        ],
+    )
     spoken_lines = speak_completion(highest_risk, checklist_complete=checklist_success)
     if is_macos():
         console.print("[bold orange3]Daniel voice notification:[/bold orange3]")
@@ -394,3 +453,109 @@ def _run_adam_nuclei_review(
     if result.exit_code != 0 and result.stderr:
         console.print(f"[bold yellow]{result.stderr}[/bold yellow]")
     return result.exit_code == 0, findings
+
+
+def _load_adam_memory() -> list[str]:
+    if not ADAM_MEMORY_PATH.exists():
+        return []
+    lines = []
+    for raw_line in ADAM_MEMORY_PATH.read_text(encoding="utf-8").splitlines():
+        stripped = raw_line.strip()
+        if not stripped or stripped.startswith("#"):
+            continue
+        if stripped.startswith("- "):
+            lines.append(stripped[2:])
+        else:
+            lines.append(stripped)
+    return lines
+
+
+def _announce_mode(console: Console, mode: str, lines: list[str]) -> None:
+    console.print(
+        Panel(
+            "\n".join(f"- {line}" for line in lines),
+            title=f"Adam Mode: {mode}",
+            border_style="red",
+        )
+    )
+
+
+def _format_prior_context(target: str, context: dict[str, object]) -> list[str]:
+    prior_scans = context.get("prior_scans", [])
+    prior_notes = context.get("prior_notes", [])
+    lines = [f"Target scope seed: {target}"]
+    if prior_scans:
+        latest = prior_scans[:3]
+        lines.append(f"Found {len(prior_scans)} prior local scan records with matching target context")
+        for item in latest:
+            lines.append(
+                f"Recent: {item.get('tool_name', '-')} on {item.get('target', '-')} ({item.get('status', '-')})"
+            )
+    else:
+        lines.append("No materially similar prior scan records found in the local graph yet")
+    if prior_notes:
+        lines.append(f"Found {len(prior_notes)} prior local note headers with matching context")
+    else:
+        lines.append("No prior matching note headers found")
+    return lines
+
+
+def _render_graph_state(console: Console, graph_state: dict[str, object]) -> None:
+    summary = graph_state.get("summary", {})
+    related_targets = graph_state.get("related_targets", [])
+    table = Table(title="Adam Knowledge Graph", expand=False)
+    table.add_column("Signal", style="bold magenta")
+    table.add_column("Value", style="cyan")
+    table.add_row("Hosts", str(summary.get("hosts", 0)))
+    table.add_row("Services", str(summary.get("services", 0)))
+    table.add_row("Paths", str(summary.get("paths", 0)))
+    table.add_row("Reviews", str(summary.get("reviews", 0)))
+    table.add_row("Nodes", str(len(graph_state.get("nodes", []))))
+    table.add_row("Edges", str(len(graph_state.get("edges", []))))
+    console.print(table)
+    if related_targets:
+        related = Table(title="Related Local Targets", expand=False)
+        related.add_column("Target", style="bold orange3")
+        related.add_column("Score")
+        related.add_column("Shared Signals")
+        for item in related_targets:
+            shared = " | ".join(
+                value
+                for value in (
+                    str(item.get("shared_products", "")),
+                    str(item.get("shared_categories", "")),
+                    str(item.get("shared_reviews", "")),
+                )
+                if value and value != "-"
+            ) or "-"
+            related.add_row(str(item.get("target", "-")), str(item.get("score", 0)), shared)
+        console.print(related)
+
+
+def _render_manual_validation_guidance(console: Console, overview: dict[str, object], highest_risk: int) -> None:
+    lines = [
+        f"Highest observed risk score: {highest_risk}",
+        "Review the top-ranked Angel Eyes paths and confirm whether access controls are enforced consistently.",
+        "Validate exposed services against observed versions and review findings before taking any manual follow-up action.",
+        "Use remediation and evidence preservation notes from the report artifacts; Adam does not execute exploits.",
+    ]
+    reviews = overview.get("reviews", [])
+    top_titles = [str(item.get("title") or item.get("finding_key") or "").strip() for item in reviews[:3] if isinstance(item, dict)]
+    if top_titles:
+        lines.append(f"Top review signals: {', '.join(title for title in top_titles if title)}")
+    console.print(Panel("\n".join(f"- {line}" for line in lines), title="Manual Validation Guidance", border_style="orange3"))
+
+
+def _reflection_lines(graph_state: dict[str, object], highest_risk: int, *, checklist_ready: bool) -> list[str]:
+    related_targets = graph_state.get("related_targets", [])
+    lines = [
+        f"Knowledge graph refreshed from the latest local evidence set (highest risk: {highest_risk})",
+        "This run can feed future autoresearch and operator review without changing scope",
+    ]
+    if related_targets:
+        first = related_targets[0]
+        lines.append(f"Closest prior local match: {first.get('target', '-')} (score {first.get('score', 0)})")
+    else:
+        lines.append("No strong prior local analog found in the graph")
+    lines.append("MAGI checklist is ready for final execution" if checklist_ready else "MAGI checklist deferred")
+    return lines
